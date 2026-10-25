@@ -1,0 +1,15 @@
+{
+ "session_id": "sess-0001",
+ "transcript_path": "/tmp/t.jsonl",
+ "cwd": "/tmp/proj",
+ "permission_mode": "default",
+ "hook_event_name": "PreToolUse",
+ "tool_name": "Edit",
+ "tool_use_id": "toolu_2",
+ "tool_input": {
+  "file_path": "/tmp/proj/app.py",
+  "old_string": "x = 1",
+  "new_string": "x = 2",
+  "replace_all": false
+ }
+}

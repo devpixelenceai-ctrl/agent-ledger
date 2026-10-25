@@ -1,0 +1,13 @@
+{
+ "session_id": "sess-0001",
+ "transcript_path": "/tmp/t.jsonl",
+ "cwd": "/tmp/proj",
+ "permission_mode": "default",
+ "hook_event_name": "PreToolUse",
+ "tool_name": "WebFetch",
+ "tool_use_id": "toolu_6",
+ "tool_input": {
+  "url": "https://example.com/a",
+  "prompt": "summarise"
+ }
+}

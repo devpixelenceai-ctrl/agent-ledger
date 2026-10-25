@@ -1,0 +1,16 @@
+{
+ "session_id": "sess-0001",
+ "transcript_path": "/tmp/t.jsonl",
+ "cwd": "/tmp/proj",
+ "permission_mode": "default",
+ "hook_event_name": "PreToolUse",
+ "tool_name": "mcp__github__create_issue",
+ "tool_use_id": "toolu_5",
+ "tool_input": {
+  "title": "x"
+ },
+ "mcp_server": {
+  "name": "github",
+  "source": "user"
+ }
+}

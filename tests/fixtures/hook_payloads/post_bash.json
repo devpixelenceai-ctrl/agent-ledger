@@ -1,0 +1,18 @@
+{
+ "session_id": "sess-0001",
+ "transcript_path": "/tmp/t.jsonl",
+ "cwd": "/tmp/proj",
+ "permission_mode": "default",
+ "hook_event_name": "PostToolUse",
+ "tool_name": "Bash",
+ "tool_use_id": "toolu_1",
+ "tool_input": {
+  "command": "pytest -q"
+ },
+ "tool_response": {
+  "stdout": "3 passed",
+  "stderr": "",
+  "interrupted": false
+ },
+ "duration_ms": 900
+}

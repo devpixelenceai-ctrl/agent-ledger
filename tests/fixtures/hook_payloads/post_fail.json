@@ -1,0 +1,14 @@
+{
+ "session_id": "sess-0001",
+ "transcript_path": "/tmp/t.jsonl",
+ "cwd": "/tmp/proj",
+ "permission_mode": "default",
+ "hook_event_name": "PostToolUseFailure",
+ "tool_name": "Bash",
+ "tool_use_id": "toolu_4",
+ "tool_input": {
+  "command": "npm test"
+ },
+ "error": "Exit code 1",
+ "is_interrupt": false
+}

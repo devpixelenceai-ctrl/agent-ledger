@@ -1,0 +1,9 @@
+{
+ "session_id": "sess-0001",
+ "transcript_path": "/tmp/t.jsonl",
+ "cwd": "/tmp/proj",
+ "permission_mode": "default",
+ "hook_event_name": "Stop",
+ "stop_hook_active": false,
+ "last_assistant_message": "Done."
+}

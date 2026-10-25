@@ -85,8 +85,15 @@ def _within(path: str, base: str) -> bool:
 
 
 def classify(text: str, dynamic: bool, cwd: str | None, ctx: Context) -> PathRef:
-    if dynamic or not text:
+    if dynamic or not text or "\x00" in text:
         return PathRef(text, None, "unknown", cwd)
+    try:
+        return _classify(text, cwd, ctx)
+    except (OSError, ValueError, UnicodeError):
+        return PathRef(text, None, "unknown", cwd)
+
+
+def _classify(text: str, cwd: str | None, ctx: Context) -> PathRef:
     t = text.replace("\\", "/") if os.sep == "\\" else text
     if t in SPECIAL_PATHS or t.startswith("/dev/fd/"):
         return PathRef(text, t, "special", cwd)
@@ -441,18 +448,37 @@ class PathPattern:
         return self.regex(ctx).fullmatch(candidate) is not None
 
 
+GLOB_MAX_RESULTS = 500
+# Names a wildcard is checked against when we refuse to walk directories for it.
+_SENSITIVE_SAMPLES = (".env", ".env.local", ".env.production", "id_rsa", "id_ed25519", "id_ecdsa", "server.pem",
+                      "server.key", "credentials", ".netrc", ".pgpass", "ledger.db", "settings.json",
+                      "settings.local.json", ".agent-ledger.toml", "terraform.tfvars")
+
+
 def path_candidates(ref: PathRef) -> list[str]:
-    """Concrete strings a path reference may denote: its resolved path, its basename (for
-    unresolvable references), and for globs every existing file the glob expands to."""
+    """Concrete strings a path reference may denote: its resolved path, its basename, and for
+    globs the files it expands to. Globs are expanded only within ONE directory (bounded work:
+    a slow hook times out and fails open); a wildcard in a directory component is instead
+    checked against a list of sensitive file names."""
+    import itertools
+
     cands = []
     if ref.resolved:
         cands.append(ref.resolved)
-    if ref.text:
-        cands.append("/" + ref.text.rstrip("/").rsplit("/", 1)[-1])
-        if ref.resolved and ref.cwd and any(ch in ref.text for ch in "*?["):
+    if not ref.text:
+        return cands
+    last = ref.text.rstrip("/").rsplit("/", 1)[-1]
+    cands.append("/" + last)
+    if ref.resolved and ref.cwd and any(ch in ref.text for ch in "*?["):
+        dir_part = ref.text.rstrip("/").rsplit("/", 1)[0] if "/" in ref.text.rstrip("/") else ""
+        if any(ch in dir_part for ch in "*?["):
+            rx = re.compile(_glob_to_regex(last), re.I)
+            cands += ["/" + s for s in _SENSITIVE_SAMPLES if rx.fullmatch(s)]
+        else:
             try:
                 pattern = ref.text if os.path.isabs(ref.text) else os.path.join(ref.cwd, ref.text)
-                cands += [os.path.realpath(x) for x in _glob.glob(os.path.expanduser(pattern), include_hidden=True)[:200]]
+                it = _glob.iglob(os.path.expanduser(pattern))  # like bash: * skips dotfiles
+                cands += [os.path.realpath(x) for x in itertools.islice(it, GLOB_MAX_RESULTS)]
             except (OSError, ValueError, TypeError):
                 pass
     return cands

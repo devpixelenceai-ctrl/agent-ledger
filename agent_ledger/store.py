@@ -56,29 +56,29 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 
 
-def connect(path, readonly: bool = False) -> sqlite3.Connection:
+def connect(path, readonly: bool = False, busy_timeout_ms: int = 10000) -> sqlite3.Connection:
     path = Path(path)
     if readonly:
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, isolation_level=None)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA query_only = ON")
         return conn
-    old = os.umask(0o077)
+    old = os.umask(0o077)  # the db, -wal and -shm files are all created private
     try:
         if not path.parent.exists():
             path.parent.mkdir(parents=True, mode=0o700)
         new = not path.exists()
-        conn = sqlite3.connect(path, timeout=10, isolation_level=None)
+        conn = sqlite3.connect(path, timeout=busy_timeout_ms / 1000, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute(f"PRAGMA busy_timeout = {int(busy_timeout_ms)}")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        if new or conn.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
+            conn.execute("PRAGMA journal_mode = WAL")
+        if new or not conn.execute("SELECT 1 FROM sqlite_master WHERE name='events'").fetchone():
+            conn.executescript(_SCHEMA)
+            conn.execute("INSERT OR IGNORE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
     finally:
         os.umask(old)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 10000")
-    conn.execute("PRAGMA synchronous = NORMAL")
-    if new or conn.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
-        conn.execute("PRAGMA journal_mode = WAL")
-    if new or not conn.execute("SELECT 1 FROM sqlite_master WHERE name='events'").fetchone():
-        conn.executescript(_SCHEMA)
-        conn.execute("INSERT OR IGNORE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
     return conn
 
 
@@ -88,6 +88,14 @@ def _fields(row) -> dict:
 
 def append(conn: sqlite3.Connection, row: dict, key: bytes | None = None, session_meta: dict | None = None):
     """Append one event atomically. BEGIN IMMEDIATE serialises concurrent hook processes."""
+    old = os.umask(0o077)  # a checkpoint may have removed -wal; it is recreated private
+    try:
+        return _append(conn, row, key, session_meta)
+    finally:
+        os.umask(old)
+
+
+def _append(conn: sqlite3.Connection, row: dict, key: bytes | None, session_meta: dict | None):
     conn.execute("BEGIN IMMEDIATE")
     try:
         last = conn.execute("SELECT seq, row_hash FROM events ORDER BY seq DESC LIMIT 1").fetchone()
@@ -137,6 +145,27 @@ def get_session(conn, session_id: str) -> dict | None:
     return dict(r) if r else None
 
 
-def verify(conn, key: bytes | None = None) -> VerifyResult:
+def verify(conn, key: bytes | None = None, expect_head: str | None = None) -> VerifyResult:
+    """Walk the chain, then two checks the chain alone cannot do:
+    - truncation: deleting the newest rows leaves a valid chain, but the (separately
+      maintained) session counters still remember how many tool calls there were;
+    - anchoring: `expect_head` is a head hash recorded earlier (e.g. in a report or a
+      commit); it must still be in the chain, which defeats a full rewrite.
+    """
     rows = conn.execute(f"SELECT {', '.join(CHAINED_FIELDS)}, prev_hash, row_hash FROM events ORDER BY seq")
-    return verify_rows(rows, _fields, key)
+    r = verify_rows(rows, _fields, key)
+    if not r.ok:
+        return r
+    for sid, recorded, present in conn.execute(
+        "SELECT s.session_id, s.tool_calls, (SELECT COUNT(*) FROM events e WHERE e.session_id = s.session_id "
+        "AND e.event_type = 'PreToolUse') FROM sessions s"
+    ):
+        if present < recorded:
+            r.ok = False
+            r.reason = (f"possible truncation: session {sid} recorded {recorded} tool calls "
+                        f"but only {present} are in the log")
+            return r
+    if expect_head and not conn.execute("SELECT 1 FROM events WHERE row_hash = ?", (expect_head,)).fetchone():
+        r.ok = False
+        r.reason = "anchor hash not found: the log was rewritten or truncated since that hash was recorded"
+    return r

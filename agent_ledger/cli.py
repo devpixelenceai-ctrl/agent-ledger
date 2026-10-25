@@ -32,6 +32,7 @@ def _build_parser():
 
     v = sub.add_parser("verify", help="verify the hash chain")
     v.add_argument("--db", help="ledger database (default: from config)")
+    v.add_argument("--expect-head", help="a head hash recorded earlier; fail if it is no longer in the chain")
 
     pol = sub.add_parser("policy", help="inspect, test and trust policies")
     psub = pol.add_subparsers(dest="pcmd", required=True)
@@ -129,10 +130,13 @@ def _cmd_verify(args) -> int:
     if not db.exists():
         print(f"No ledger at {db} yet.")
         return 0
-    r = store.verify(store.connect(db, readonly=True), key=cfg.hmac_key)
+    r = store.verify(store.connect(db, readonly=True), key=cfg.hmac_key, expect_head=args.expect_head)
     if r.ok:
         print(f"OK: {r.checked} events, chain intact.\nHead hash: {r.head_hash}")
         return 0
+    if r.first_bad_seq is None:
+        print(f"BROKEN: {r.reason}\nThe {r.checked} events present are internally consistent.")
+        return 1
     print(f"BROKEN at seq {r.first_bad_seq}: {r.reason}\nVerified {r.checked} events before the break.")
     print(f"Last good hash: {r.head_hash}")
     return 1

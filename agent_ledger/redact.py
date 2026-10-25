@@ -94,8 +94,11 @@ def _entropy(s: str) -> float:
 
 
 def _looks_random(tok: str) -> bool:
-    if "REDACTED" in tok or _HEX.fullmatch(tok):
+    if "REDACTED" in tok:
         return False
+    if _HEX.fullmatch(tok):
+        # hex up to SHA-256 length is almost always a hash or id; longer hex is likely encoded data
+        return len(tok.replace("-", "")) > 64
     if tok.startswith(("/", "./", "~/", "-")):
         return False
     slashes = tok.count("/")
@@ -195,6 +198,7 @@ def is_secret_path(path: str) -> bool:
     return "/.aws/" in p and base in ("credentials", "config")
 
 
+_SHELL_QUOTES = re.compile(r"""['"]|\\(?=\S)""")
 _FILE_PATH_KEYS = ("file_path", "notebook_path", "path")
 _CONTENT_KEYS = ("content", "old_string", "new_string", "edits", "new_source", "old_source")
 
@@ -210,4 +214,13 @@ def redact_event_payload(payload: dict) -> dict:
             payload["tool_input"] = ti
             if "tool_response" in payload:
                 payload["tool_response"] = SECRET_FILE
+        cmd = ti.get("command")
+        if isinstance(cmd, str):
+            # The shell joins `sk-ant-""api03...` back into one token; check the joined form too,
+            # and if it hides a secret store that (redacted) form instead of the raw command.
+            joined = _SHELL_QUOTES.sub("", cmd)
+            if joined != cmd:
+                red = redact_str(joined)
+                if red != joined and red != redact_str(cmd).replace("'", "").replace('"', ""):
+                    payload["tool_input"] = {**ti, "command": red + "  [agent-ledger: quotes removed to redact a split secret]"}
     return redact(payload)

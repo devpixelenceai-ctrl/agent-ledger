@@ -434,14 +434,32 @@ def _basename(cmd: str) -> str:
     return base or cmd
 
 
-def _brace_expand(text: str) -> list[str]:
-    m = re.search(r"\{([^{}]*,[^{}]*)\}", text)
-    if not m:
-        return [text]
-    out = []
-    for alt in m.group(1).split(","):
-        out.extend(_brace_expand(text[: m.start()] + alt + text[m.end():]))
-    return out[:64]
+_BRACE = re.compile(r"\{([^{}]*,[^{}]*)\}")
+BRACE_LIMIT = 64
+
+
+def _brace_expand(text: str) -> tuple[list[str], bool]:
+    """Expand {a,b} groups breadth-first. Returns (words, truncated); never exponential."""
+    results, truncated = [text], False
+    for _ in range(32):
+        nxt, changed = [], False
+        for t in results:
+            m = _BRACE.search(t)
+            if not m:
+                nxt.append(t)
+                continue
+            changed = True
+            for alt in m.group(1).split(","):
+                nxt.append(t[: m.start()] + alt + t[m.end():])
+        if len(nxt) > BRACE_LIMIT:
+            # keep a bounded sample plus the raw word, and let policy know we gave up
+            return nxt[:BRACE_LIMIT] + [text], True
+        results = nxt
+        if not changed:
+            break
+    else:
+        truncated = True
+    return results, truncated
 
 
 def _interp_name(cmd: str) -> str | None:
@@ -491,7 +509,11 @@ class Parser:
                 buf.append(str(val))
                 dynamic = True
         text = "".join(buf)
-        texts = _brace_expand(text) if (not word.quoted and "{" in text and "," in text) else [text]
+        texts = [text]
+        if not word.quoted and "{" in text and "," in text:
+            texts, truncated = _brace_expand(text)
+            if truncated:
+                self.out.unparseable = "brace expansion too large to analyse"
         return texts, dynamic, sub_fetch
 
     # parsing ------------------------------------------------------------

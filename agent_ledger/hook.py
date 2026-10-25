@@ -24,6 +24,7 @@ from agent_ledger.model import Decision, Event
 from agent_ledger.redact import redact_str
 
 ERROR_LOG_MAX = 1_000_000
+HOOK_LOCK_WAIT_MS = 3000  # well under the 10 s hook timeout, so a decision is never lost to a lock
 BLOCK_MSG = "agent-ledger: internal error and fail_mode=closed, so this tool call is blocked. See {log}"
 
 
@@ -105,7 +106,7 @@ def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseExcept
     }
     if error is not None:
         row.update(decision="error", reason=redact_str(f"{type(error).__name__}: {error}")[:500])
-    conn = store.connect(cfg.db_path)
+    conn = store.connect(cfg.db_path, busy_timeout_ms=HOOK_LOCK_WAIT_MS)
     try:
         store.append(conn, row, key=cfg.hmac_key, session_meta=adapter.session_meta(ev.raw))
     finally:

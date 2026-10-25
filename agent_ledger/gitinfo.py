@@ -4,6 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+MAX_READ = 4096
+MAX_PACKED_REFS = 4_000_000
+
+
+def _read(path: Path) -> str | None:
+    """Read a small regular file. FIFOs, devices and huge files are refused: they could hang the hook."""
+    if not path.is_file():
+        return None
+    with open(path, "rb") as f:
+        return f.read(MAX_READ).decode("utf-8", "replace")
+
 
 def _find_gitdir(start: Path) -> Path | None:
     for d in (start, *start.parents):
@@ -11,7 +22,7 @@ def _find_gitdir(start: Path) -> Path | None:
         if dotgit.is_dir():
             return dotgit
         if dotgit.is_file():
-            text = dotgit.read_text("utf-8", "replace").strip()
+            text = (_read(dotgit) or "").strip()
             if not text.startswith("gitdir:"):
                 return None
             p = Path(text[len("gitdir:"):].strip())
@@ -23,9 +34,9 @@ def _resolve_ref(gitdir: Path, common: Path, ref: str) -> str | None:
     for base in (gitdir, common):
         f = base / ref
         if f.is_file():
-            return f.read_text("utf-8", "replace").strip() or None
+            return (_read(f) or "").strip() or None
     packed = common / "packed-refs"
-    if packed.is_file():
+    if packed.is_file() and packed.stat().st_size < MAX_PACKED_REFS:
         for line in packed.read_text("utf-8", "replace").splitlines():
             parts = line.split()
             if len(parts) == 2 and parts[1] == ref:
@@ -44,8 +55,11 @@ def git_info(path: str | None) -> tuple[str | None, str | None]:
         common = gitdir
         cd = gitdir / "commondir"
         if cd.is_file():
-            common = (gitdir / cd.read_text("utf-8").strip()).resolve()
-        head = (gitdir / "HEAD").read_text("utf-8", "replace").strip()
+            common = (gitdir / (_read(cd) or ".").strip()).resolve()
+        head = _read(gitdir / "HEAD")
+        if head is None:
+            return None, None
+        head = head.strip()
         if head.startswith("ref:"):
             ref = head[4:].strip()
             branch = ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else ref

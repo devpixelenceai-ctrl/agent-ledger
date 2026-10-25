@@ -37,7 +37,7 @@ def load_config(env=None) -> Config:
     warnings: list[str] = []
     section: dict = {}
     cfg_file = home / "config.toml"
-    if cfg_file.exists():
+    if cfg_file.is_file():
         import tomllib
 
         try:

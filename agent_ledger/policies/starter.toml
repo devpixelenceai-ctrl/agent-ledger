@@ -354,6 +354,15 @@ decision = "allow"
 severity = "info"
 
 [[rule]]
+id = "self.read-only"
+description = "Reading agent-ledger's own log through its CLI (it only reads; report files must stay in the project)"
+tools = ["Bash"]
+command = '^agent-ledger (sessions|show|tail|verify|report|policy (test|lint|show))\b'
+within_project = true
+decision = "allow"
+severity = "info"
+
+[[rule]]
 id = "shell.file-ops-in-project"
 description = "Creating, copying and moving files inside the project"
 tools = ["Bash"]

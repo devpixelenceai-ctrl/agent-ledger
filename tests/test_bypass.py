@@ -260,3 +260,15 @@ def test_mentioning_a_secret_name_as_text_is_not_reading_it(env, cmd):
                                  "git commit -F .env", "jq . .env", "rg -f patterns.txt .env"])
 def test_text_exemption_does_not_hide_real_file_access(env, cmd):
     assert env.decide(cmd).decision == "deny", cmd
+
+
+@pytest.mark.parametrize("cmd", ["agent-ledger sessions", "agent-ledger show abc", "agent-ledger verify",
+                                 "agent-ledger report --format html -o report.html", "agent-ledger tail -n 5"])
+def test_ledger_read_commands_allowed(env, cmd):
+    assert env.decide(cmd).decision == "allow", cmd
+
+
+@pytest.mark.parametrize("cmd", ["agent-ledger report -o ~/r.html", "agent-ledger init", "agent-ledger serve",
+                                 "agent-ledger verify --db ~/.agent-ledger/ledger.db"])
+def test_ledger_admin_or_outside_writes_not_allowed(env, cmd):
+    assert env.decide(cmd).decision != "allow", cmd

@@ -34,6 +34,24 @@ def _build_parser():
     v.add_argument("--db", help="ledger database (default: from config)")
     v.add_argument("--expect-head", help="a head hash recorded earlier; fail if it is no longer in the chain")
 
+    ss = sub.add_parser("sessions", help="list recorded sessions")
+    ss.add_argument("--since", help="YYYY-MM-DD, ISO timestamp, or 7d / 12h")
+    ss.add_argument("--limit", type=int, default=50)
+    sw = sub.add_parser("show", help="timeline of one session")
+    sw.add_argument("session", help="session id or unique prefix")
+    sw.add_argument("--decision", choices=["allow", "ask", "deny", "error"], help="only show this decision")
+    tl = sub.add_parser("tail", help="latest events")
+    tl.add_argument("-n", type=int, default=20, help="number of events (default 20)")
+    tl.add_argument("-f", "--follow", action="store_true", help="keep printing new events")
+    rp = sub.add_parser("report", help="write an audit report")
+    scope = rp.add_mutually_exclusive_group()
+    scope.add_argument("--session", help="session id or unique prefix")
+    scope.add_argument("--since", help="YYYY-MM-DD, ISO timestamp, or 7d / 12h")
+    rp.add_argument("--format", choices=["md", "html", "json"], default="md")
+    rp.add_argument("-o", "--output", help="output file (default: stdout)")
+    for p_ in (ss, sw, tl, rp):
+        p_.add_argument("--db", help="ledger database (default: from config)")
+
     pol = sub.add_parser("policy", help="inspect, test and trust policies")
     psub = pol.add_subparsers(dest="pcmd", required=True)
     t = psub.add_parser("test", help="show which rule decides a command or tool call")
@@ -59,6 +77,10 @@ def _main_slow(argv: list[str]) -> int:
         return _cmd_init(args)
     if args.cmd == "verify":
         return _cmd_verify(args)
+    if args.cmd in ("sessions", "show", "tail", "report"):
+        from agent_ledger import browse
+
+        return getattr(browse, f"cmd_{args.cmd}")(args)
     if args.cmd == "policy":
         from agent_ledger import policy_cli
 

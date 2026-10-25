@@ -34,6 +34,11 @@ def p95(samples):
 
 @pytest.fixture(scope="module")
 def warm_home(tmp_path_factory):
+    # pip/pipx byte-compile on install; an editable checkout under PYTHONDONTWRITEBYTECODE
+    # would otherwise recompile every module on every call and measure the wrong thing.
+    import agent_ledger
+
+    subprocess.run([sys.executable, "-m", "compileall", "-q", str(Path(agent_ledger.__file__).parent)], check=True)
     home = tmp_path_factory.mktemp("bench-home")
     conn = store.connect(home / "ledger.db")
     conn.execute("BEGIN")

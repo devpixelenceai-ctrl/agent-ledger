@@ -36,7 +36,9 @@ def test_records_every_event_type_and_chain_verifies(env, ledger_home):
              "pre_mcp", "permission_request", "stop", "session_end"]
     for n in names:
         code, out, _ = call(payload(n), env)
-        assert code == 0 and out == ""
+        assert code == 0
+        if out:
+            json.loads(out)  # a decision or a systemMessage, never stray text
     rows = events(ledger_home)
     assert [r["event_type"] for r in rows] == [payload(n)["hook_event_name"] for n in names]
     assert store.verify(store.connect(ledger_home / "ledger.db")).ok
@@ -149,7 +151,8 @@ def test_subprocess_unwritable_db_fail_open_and_closed(ledger_home, tmp_path):
     blocker.write_text("x")
     env = {"AGENT_LEDGER_HOME": str(ledger_home), "AGENT_LEDGER_DB": str(blocker / "ledger.db")}
     res = run_hook(payload("pre_bash"), env=env)
-    assert (res.returncode, res.stdout) == (0, "")
+    assert res.returncode == 0  # fail open: the policy decision (if any) still stands
+    assert res.stdout == "" or json.loads(res.stdout)["hookSpecificOutput"]
     fail_closed(ledger_home)
     res = run_hook(payload("pre_bash"), env=env)
     assert res.returncode == 2 and res.stdout == ""

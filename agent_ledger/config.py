@@ -14,12 +14,13 @@ FAIL_MODES = ("open", "closed")
 
 
 class Config:
-    __slots__ = ("home", "db_path", "fail_mode", "max_field_chars", "hmac_key", "warnings")
+    __slots__ = ("home", "db_path", "fail_mode", "max_field_chars", "hmac_key", "warnings", "env")
 
     def __init__(self, home: Path, db_path: Path, fail_mode: str = "open", max_field_chars: int = 65536,
                  hmac_key: bytes | None = None, warnings: tuple = ()):
         self.home, self.db_path, self.fail_mode = home, db_path, fail_mode
         self.max_field_chars, self.hmac_key, self.warnings = max_field_chars, hmac_key, warnings
+        self.env: dict = {}
 
     @property
     def fail_closed(self) -> bool:
@@ -65,4 +66,6 @@ def load_config(env=None) -> Config:
         except OSError as e:
             warnings.append(f"cannot read hmac_key_file: {e}")
 
-    return Config(home, db_path, fail_mode, max_chars, key, tuple(warnings))
+    cfg = Config(home, db_path, fail_mode, max_chars, key, tuple(warnings))
+    cfg.env = env
+    return cfg

@@ -117,9 +117,11 @@ def session_meta(data: dict) -> dict:
     return meta
 
 
-def render(decision: Decision | None, event_type: str) -> tuple[str, int]:
+def render(decision: Decision | None, event_type: str, system_message: str | None = None) -> tuple[str, int]:
     """Turn a decision into (stdout, exit_code). Only PreToolUse carries a decision."""
     if decision is None or event_type != "PreToolUse" or decision.decision not in ("allow", "ask", "deny"):
+        if system_message:
+            return json.dumps({"systemMessage": system_message[:2000]}), 0
         return "", 0
     reason = f"agent-ledger [{decision.rule_id}]: {decision.reason or decision.rule_id}"
     out = {

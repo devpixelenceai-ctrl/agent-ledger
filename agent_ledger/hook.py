@@ -28,8 +28,25 @@ BLOCK_MSG = "agent-ledger: internal error and fail_mode=closed, so this tool cal
 
 
 def evaluate(ev: Event, cfg: Config) -> Decision | None:
-    """Policy hook point. Replaced by the policy engine in M2."""
-    return None
+    """Policy decision for PreToolUse; None (no opinion) for every other event."""
+    if ev.event_type != "PreToolUse":
+        return None
+    from agent_ledger import policy as pol
+
+    p = pol.load_policy(ev.project_dir, cfg.home)
+    scratch = ev.raw.get("scratchpad_dir")
+    ctx = pol.Context(
+        ev.project_dir, cwd=ev.cwd, env=cfg.env, settings=p.settings, ledger_home=str(cfg.home),
+        extra_temp=[scratch] if isinstance(scratch, str) and scratch else None,
+    )
+    return pol.evaluate(p, ev.tool_name or "", ev.tool_input, ctx, raw=ev.raw)
+
+
+def session_warnings(ev: Event, cfg: Config) -> list[str]:
+    """Policy problems worth telling the user about once, at session start."""
+    from agent_ledger import policy as pol
+
+    return pol.load_policy(ev.project_dir, cfg.home).warnings
 
 
 def _tb() -> str:
@@ -63,6 +80,12 @@ def _fail(cfg: Config | None, env, event_type: str | None, stderr) -> int:
     return 0
 
 
+def _policy_ref(cfg: Config, ev: Event) -> str:
+    from agent_ledger.policyfile import policy_ref
+
+    return policy_ref(ev.project_dir, cfg.home)
+
+
 def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseException | None) -> None:
     payload = adapter.stored_payload(ev.raw, cfg.max_field_chars)
     row = {
@@ -78,7 +101,7 @@ def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseExcept
         "rule_id": decision.rule_id if decision else None,
         "severity": decision.severity if decision else None,
         "reason": decision.reason if decision else None,
-        "policy_hash": (decision.policy_hash if decision else None) or "none",
+        "policy_hash": (decision.policy_hash if decision else None) or _policy_ref(cfg, ev),
     }
     if error is not None:
         row.update(decision="error", reason=redact_str(f"{type(error).__name__}: {error}")[:500])
@@ -129,7 +152,17 @@ def main(stdin=None, stdout=None, stderr=None, env=None) -> int:
     if not recorded and cfg.fail_closed and event_type == "PreToolUse":
         stderr.write(BLOCK_MSG.format(log=ledger_home(env) / "errors.log") + "\n")
         return 2
-    out, code = adapter.render(decision, ev.event_type)
+    message = None
+    if ev.event_type == "SessionStart":
+        try:
+            warnings = session_warnings(ev, cfg)
+            for w in warnings:
+                log_error(env, f"policy warning: {w}")
+            if warnings:
+                message = "agent-ledger: " + "; ".join(warnings)
+        except Exception:
+            log_error(env, "session warning error:\n" + _tb())
+    out, code = adapter.render(decision, ev.event_type, message)
     if out:
         stdout.write(out)
     return code

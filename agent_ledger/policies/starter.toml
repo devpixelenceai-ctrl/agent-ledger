@@ -1,0 +1,363 @@
+# agent-ledger starter policy
+#
+# How it works (full reference: docs/policy-reference.md):
+#   - Rules are checked top to bottom; the FIRST matching rule decides.
+#   - Shell commands are split into simple commands ("segments"); each segment is
+#     matched separately and the strictest result wins (deny > ask > allow).
+#   - Anything no rule matches gets settings.default_decision.
+#   - "ask" makes Claude Code show its normal approval prompt; "deny" blocks the call
+#     and tells the agent why; "allow" skips the prompt (settings deny rules still apply).
+#
+# Path placeholders: {project} = project root, {ledger_home} = ~/.agent-ledger, ~ = $HOME.
+# Keep deny rules first, then ask, then allow.
+
+[settings]
+default_decision = "ask"
+max_delete_files = 10
+protected_branches = ["main", "master"]
+allowed_domains = [
+  "localhost", "127.0.0.1",
+  "github.com", "githubusercontent.com", "gitlab.com",
+  "pypi.org", "pythonhosted.org", "npmjs.org", "npmjs.com", "yarnpkg.com",
+  "crates.io", "rubygems.org", "go.dev", "golang.org", "proxy.golang.org",
+  "docs.python.org", "developer.mozilla.org", "readthedocs.io", "stackoverflow.com",
+  "anthropic.com", "claude.com", "claude.ai",
+]
+
+# ------------------------------------------------------------------ deny
+
+[[rule]]
+id = "self.ledger-files"
+description = "The agent may not read or modify agent-ledger's own log and config"
+paths = ["{ledger_home}", "{ledger_home}/**", "~/.agent-ledger", "~/.agent-ledger/**"]
+decision = "deny"
+severity = "critical"
+reason = "agent-ledger's log and configuration are off-limits to the agent"
+
+[[rule]]
+id = "self.policy-and-hooks"
+description = "The agent may not edit the policy file or the Claude Code settings that install the hooks"
+paths = ["{project}/.agent-ledger.toml", "**/.claude/settings.json", "**/.claude/settings.local.json"]
+access = "write"
+decision = "deny"
+severity = "critical"
+reason = "editing the agent-ledger policy or Claude Code hook settings is reserved for a human"
+
+[[rule]]
+id = "secrets.files"
+description = "Reading or editing secrets files (.env, private keys, credential stores)"
+paths = [
+  "**/.env", "**/.env.*", "**/*.env", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx",
+  "**/id_rsa*", "**/id_dsa*", "**/id_ecdsa*", "**/id_ed25519*", "**/.ssh/**",
+  "**/.aws/credentials", "**/.aws/config", "**/.netrc", "**/.pgpass", "**/.git-credentials",
+  "**/.docker/config.json", "**/.kube/config", "**/*.tfvars", "**/secrets.yml", "**/secrets.yaml",
+]
+exclude_paths = ["**/.env.example", "**/.env.sample", "**/.env.template", "**/*.pub"]
+decision = "deny"
+severity = "critical"
+reason = "secrets files are off-limits; ask a human to provide what you need"
+
+[[rule]]
+id = "shell.remote-code"
+description = "Downloading code and executing it in one step (curl | sh, bash <(curl ...))"
+tools = ["Bash"]
+check = "remote_pipe_to_shell"
+decision = "deny"
+severity = "critical"
+reason = "piping downloaded content into a shell or interpreter is blocked"
+
+[[rule]]
+id = "fs.delete-outside-project"
+description = "Deleting files outside the project, or the project root itself (rm -rf /, ~, ..)"
+check = "delete_outside_project"
+decision = "deny"
+severity = "critical"
+reason = "deleting outside the project folder is blocked"
+
+[[rule]]
+id = "git.force-push-protected"
+description = "Force-pushing to (or deleting) main/master"
+tools = ["Bash"]
+check = "git_force_push_protected"
+decision = "deny"
+severity = "critical"
+reason = "force-pushing to a protected branch is blocked"
+
+[[rule]]
+id = "fs.chmod-world-writable"
+description = "Making files world-writable (chmod 777, o+w)"
+tools = ["Bash"]
+check = "chmod_world_writable"
+decision = "deny"
+severity = "high"
+reason = "world-writable permissions are blocked"
+
+[[rule]]
+id = "fs.write-outside-project"
+description = "Writing files outside the project folder (temp dirs are fine)"
+check = "write_outside_project"
+decision = "deny"
+severity = "high"
+reason = "writing outside the project folder is blocked"
+
+# ------------------------------------------------------------------ ask
+
+[[rule]]
+id = "shell.unparseable"
+description = "Shell syntax agent-ledger cannot analyse"
+tools = ["Bash"]
+check = "unparseable"
+decision = "ask"
+severity = "medium"
+reason = "agent-ledger could not fully parse this command"
+
+[[rule]]
+id = "shell.dynamic-command"
+description = "The command name comes from a variable or substitution"
+tools = ["Bash"]
+check = "dynamic_command"
+decision = "ask"
+severity = "high"
+reason = "the program being run is computed at runtime, so it cannot be checked"
+
+[[rule]]
+id = "shell.pipe-to-interpreter"
+description = "Piping data into a shell or interpreter (echo ... | sh, base64 -d | bash)"
+tools = ["Bash"]
+check = "pipe_to_shell"
+decision = "ask"
+severity = "high"
+reason = "code piped into an interpreter cannot be checked"
+
+[[rule]]
+id = "shell.inline-code"
+description = "Inline interpreter code (python -c, node -e, awk system())"
+tools = ["Bash"]
+check = "inline_code"
+decision = "ask"
+severity = "medium"
+reason = "inline interpreter code can do anything; please review it"
+
+[[rule]]
+id = "fs.unknown-write-target"
+description = "Writing or deleting a path that depends on runtime values"
+check = "unknown_write_target"
+decision = "ask"
+severity = "medium"
+reason = "the target path is only known at runtime"
+
+[[rule]]
+id = "fs.bulk-delete"
+description = "Recursive, wildcard or bulk deletes (more than max_delete_files)"
+tools = ["Bash"]
+check = "too_many_deletes"
+decision = "ask"
+severity = "high"
+reason = "bulk or recursive delete"
+
+[[rule]]
+id = "self.admin"
+description = "Changing agent-ledger's own installation or trust"
+tools = ["Bash"]
+command = '^agent-ledger (init|policy trust)\b'
+decision = "ask"
+severity = "high"
+reason = "this changes how agent-ledger governs the session"
+
+[[rule]]
+id = "git.config-override"
+description = "git -c can run arbitrary programs (aliases, sshCommand, pager)"
+tools = ["Bash"]
+check = "git_config_override"
+decision = "ask"
+severity = "medium"
+
+[[rule]]
+id = "git.push"
+description = "Pushing to a remote"
+tools = ["Bash"]
+command = '^git push\b'
+decision = "ask"
+severity = "medium"
+reason = "pushes publish code; please confirm"
+
+[[rule]]
+id = "git.destructive"
+description = "Git commands that discard work or rewrite history"
+tools = ["Bash"]
+command = '^git (reset --hard|clean\b.*-[a-zA-Z]*f|checkout (-f|--force|\.|-- )|restore\b|branch (-D|--delete --force)|filter-branch|filter-repo|reflog expire|gc --prune|stash (drop|clear)|rebase\b|update-ref -d)'
+decision = "ask"
+severity = "medium"
+
+[[rule]]
+id = "pkg.install"
+description = "Installing packages"
+tools = ["Bash"]
+command = [
+  '^(npm|pnpm|bun) (install|i|add|ci)\b', '^yarn( (add|install)\b|$)', '^npx\b',
+  '^(pip[0-9.]*|uv pip|python[0-9.]* -m pip) install\b', '^uv (add|sync|tool install)\b', '^pipx (install|run)\b',
+  '^poetry (add|install)\b', '^cargo (install|add)\b', '^gem install\b', '^go (install|get)\b',
+  '^brew (install|upgrade|tap)\b', '^(apt|apt-get|dnf|yum|apk|pacman|zypper|port) (install|add|-S)\b',
+  '^conda (install|create)\b', '^bundle (install|add)\b', '^composer (require|install)\b',
+]
+decision = "ask"
+severity = "medium"
+reason = "package installs run third-party code"
+
+[[rule]]
+id = "db.migrate"
+description = "Database migrations"
+tools = ["Bash"]
+command = [
+  '^alembic (upgrade|downgrade|stamp)\b', '^(npx )?prisma (migrate|db push)\b', '^(rails|rake|bin/rails) db:',
+  '^python[0-9.]* manage\.py (migrate|flush|sqlflush)\b', '^(npx )?knex migrate', '^flyway\b', '^liquibase\b',
+  '^(npx )?sequelize(-cli)? db:', '^dbmate\b', '^goose\b', '^(npx )?typeorm migration:', '^diesel migration\b',
+  '^supabase db (push|reset)\b', '^(psql|mysql)\b.*\b(DROP|TRUNCATE|ALTER)\b',
+]
+decision = "ask"
+severity = "high"
+reason = "database changes can be hard to undo"
+
+[[rule]]
+id = "infra.change"
+description = "Infrastructure and cluster changes"
+tools = ["Bash"]
+command = [
+  '^(terraform|tofu|terragrunt) (apply|destroy|import|state|taint)\b', '^pulumi (up|destroy|import)\b',
+  '^kubectl\b', '^helm (install|upgrade|uninstall|rollback|delete)\b', '^(aws|gcloud|az|doctl)\b',
+  '^docker (push|login)\b', '^ansible-playbook\b',
+]
+decision = "ask"
+severity = "high"
+reason = "infrastructure changes affect shared systems"
+
+[[rule]]
+id = "deploy"
+description = "Deploy and release commands"
+tools = ["Bash"]
+command = [
+  '(^|/)deploy[\w.\-]*( |$)', '^(npm|pnpm|yarn|bun) run deploy', '^make\b.*\bdeploy',
+  '^(fly|flyctl|vercel|netlify|heroku|firebase|serverless|sls|railway|wrangler|eb|cap)\b',
+  '^gh (release|workflow run)\b', '^(twine|npm|pnpm|yarn|cargo|gem) publish\b',
+]
+decision = "ask"
+severity = "high"
+reason = "deploys and releases reach production"
+
+[[rule]]
+id = "shell.env-dump"
+description = "Printing the whole environment (exposes secrets to the model)"
+tools = ["Bash"]
+command = '^(env|printenv|set|export -p|declare -[px])$'
+decision = "ask"
+severity = "medium"
+
+[[rule]]
+id = "net.unlisted-domain"
+description = "Network access to a domain not in allowed_domains"
+domains = "not_allowlisted"
+decision = "ask"
+severity = "medium"
+reason = "this domain is not on the allowlist"
+
+[[rule]]
+id = "mcp.host-tools"
+description = "MCP tools provided by the host application itself (source = sdk)"
+tools = ["mcp__*"]
+mcp_source = ["sdk"]
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "mcp.default"
+description = "Third-party MCP tools need approval unless a rule allows them"
+tools = ["mcp__*"]
+decision = "ask"
+severity = "medium"
+
+# ------------------------------------------------------------------ allow
+
+[[rule]]
+id = "tools.internal"
+description = "Agent-internal tools with no side effects outside the session"
+tools = [
+  "TodoWrite", "Task", "Agent", "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "Skill", "ToolSearch",
+  "WebSearch", "TaskOutput", "TaskStop", "BashOutput", "KillShell", "KillBash", "SlashCommand",
+  "ListMcpResourcesTool", "ReadMcpResourceTool", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
+]
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "net.allowlisted-fetch"
+description = "WebFetch to allowlisted domains"
+tools = ["WebFetch"]
+domains = "allowlisted"
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "files.read-in-project"
+description = "Reading and searching inside the project (and temp dirs)"
+tools = ["Read", "Glob", "Grep", "LS", "NotebookRead"]
+within_project = true
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "files.edit-in-project"
+description = "Editing files inside the project (and temp dirs)"
+tools = ["Edit", "Write", "MultiEdit", "NotebookEdit"]
+within_project = true
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "shell.read-only"
+description = "Read-only shell commands on project files"
+tools = ["Bash"]
+commands = [
+  "ls", "cat", "head", "tail", "wc", "grep", "egrep", "fgrep", "rg", "ag", "echo", "printf", "pwd", "which",
+  "type", "whereis", "diff", "cmp", "sort", "uniq", "cut", "tr", "sed", "jq", "yq", "true", "false", "test",
+  "[", "cd", "pushd", "popd", "file", "stat", "du", "df", "tree", "basename", "dirname", "realpath",
+  "readlink", "sleep", "date", "uname", "whoami", "id", "hostname", "find", "fd", "less", "more", "column",
+  "nl", "od", "xxd", "hexdump", "md5", "md5sum", "shasum", "sha256sum", "awk", "comm", "paste", "fold",
+  "expr", "seq", "tac", "rev", "strings", "command",
+]
+within_project = true
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "shell.git-local"
+description = "Git commands that only read or change the local repository"
+tools = ["Bash"]
+command = '^git (status|log|diff|show|branch|rev-parse|ls-files|ls-tree|blame|describe|remote( -v)?$|config --(get|list)|stash (list|show|push|save)?|tag( -l| --list)?$|shortlog|reflog( show)?$|add|commit|switch|checkout -b|fetch|grep|cat-file|merge-base|worktree list|init)\b'
+within_project = true
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "shell.tests-and-linters"
+description = "Running tests, type-checkers and linters"
+tools = ["Bash"]
+command = [
+  '^(pytest|py\.test|tox|nox|ruff|mypy|pyright|black --check|flake8|pylint|isort --check)\b',
+  '^python[0-9.]* -m (pytest|unittest|mypy|ruff|pyflakes|compileall)\b',
+  '^(npm|pnpm|yarn|bun) (run )?(test|lint|typecheck|type-check|check)\b', '^(npx )?(jest|vitest|eslint|tsc|prettier --check|playwright test)\b',
+  '^go (test|vet|build)\b', '^cargo (test|check|clippy|build|fmt --check)\b', '^make (test|check|lint)\b',
+  '^(mvn|gradle|\./gradlew) (test|check)\b', '^(bundle exec )?rspec\b', '^(phpunit|vendor/bin/phpunit)\b',
+  '^dotnet test\b', '^swift test\b', '^mix test\b',
+]
+within_project = true
+decision = "allow"
+severity = "info"
+
+[[rule]]
+id = "shell.file-ops-in-project"
+description = "Creating, copying and moving files inside the project"
+tools = ["Bash"]
+commands = ["mkdir", "touch", "cp", "mv", "ln", "rm", "rmdir", "tee"]
+within_project = true
+decision = "allow"
+severity = "info"

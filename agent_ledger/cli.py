@@ -28,9 +28,27 @@ def _build_parser():
     i.add_argument("--command", help='hook command to write (default: "agent-ledger hook")')
     i.add_argument("--absolute", action="store_true", help="write this interpreter's absolute path as the command")
     i.add_argument("--fail-closed", action="store_true", help="block tool calls when agent-ledger itself fails")
+    i.add_argument("--no-policy", action="store_true", help="do not copy the starter policy")
 
     v = sub.add_parser("verify", help="verify the hash chain")
     v.add_argument("--db", help="ledger database (default: from config)")
+
+    pol = sub.add_parser("policy", help="inspect, test and trust policies")
+    psub = pol.add_subparsers(dest="pcmd", required=True)
+    t = psub.add_parser("test", help="show which rule decides a command or tool call")
+    t.add_argument("subject", help="shell command, or the file path / URL for --tool")
+    t.add_argument("--tool", default="Bash", help="tool name (default: Bash)")
+    t.add_argument("--input", help="full tool_input as JSON (overrides subject)")
+    t.add_argument("--project", help="project directory (default: current directory)")
+    t.add_argument("--cwd", help="working directory (default: project)")
+    t.add_argument("--policy", help="policy file to use instead of the one in force")
+    lint = psub.add_parser("lint", help="validate a policy file")
+    lint.add_argument("file", nargs="?", help="policy file (default: the one in force)")
+    lint.add_argument("--project", help="project directory (default: current directory)")
+    tr = psub.add_parser("trust", help="pin the repo policy so the hook will use it")
+    tr.add_argument("file", nargs="?", help="policy file (default: ./.agent-ledger.toml)")
+    sh = psub.add_parser("show", help="show which policy is in force and why")
+    sh.add_argument("--project", help="project directory (default: current directory)")
     return p
 
 
@@ -40,6 +58,10 @@ def _main_slow(argv: list[str]) -> int:
         return _cmd_init(args)
     if args.cmd == "verify":
         return _cmd_verify(args)
+    if args.cmd == "policy":
+        from agent_ledger import policy_cli
+
+        return policy_cli.run(args)
     return 2
 
 
@@ -65,6 +87,23 @@ def _cmd_init(args) -> int:
         print(f"agent-ledger init: {e}", file=sys.stderr)
         return 1
     print(f"{'Updated' if changed else 'Already up to date:'} {settings}")
+    if not args.no_policy:
+        from agent_ledger.policyfile import REPO_POLICY, STARTER, trust_policy
+
+        home = ledger_home(os.environ)
+        target = (home / "policy.toml") if args.user else (project / REPO_POLICY)
+        if target.exists():
+            # Never auto-trust a policy we did not write: it may have come with a cloned repo.
+            print(f"Kept existing policy {target}")
+            if not args.user:
+                print(f"Review it, then run `agent-ledger policy trust {target}` so the hook will use it.")
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(STARTER.read_text("utf-8"), "utf-8")
+            print(f"Wrote starter policy {target}")
+            if not args.user:
+                digest = trust_policy(target, home)
+                print(f"Trusted {target.name} (sha256 {digest[:12]}). Re-run `agent-ledger policy trust` after editing it.")
     if args.fail_closed:
         home = ledger_home(os.environ)
         cfg = home / "config.toml"

@@ -49,7 +49,11 @@ def _build_parser():
     scope.add_argument("--since", help="YYYY-MM-DD, ISO timestamp, or 7d / 12h")
     rp.add_argument("--format", choices=["md", "html", "json"], default="md")
     rp.add_argument("-o", "--output", help="output file (default: stdout)")
-    for p_ in (ss, sw, tl, rp):
+    sv = sub.add_parser("serve", help="start the read-only dashboard on 127.0.0.1")
+    sv.add_argument("--port", type=int, default=8765)
+    sv.add_argument("--open", action="store_true", help="open it in the default browser")
+    sv.add_argument("--demo", action="store_true", help="serve a throwaway demo ledger instead of yours")
+    for p_ in (ss, sw, tl, rp, sv):
         p_.add_argument("--db", help="ledger database (default: from config)")
 
     pol = sub.add_parser("policy", help="inspect, test and trust policies")
@@ -81,6 +85,20 @@ def _main_slow(argv: list[str]) -> int:
         from agent_ledger import browse
 
         return getattr(browse, f"cmd_{args.cmd}")(args)
+    if args.cmd == "serve":
+        import os
+
+        from agent_ledger.config import load_config
+        from agent_ledger.server import serve
+
+        cfg = load_config(os.environ)
+        if args.demo:
+            from agent_ledger.demo import build_demo
+
+            db = build_demo()
+            print(f"Demo ledger: {db}")
+            return serve(db, port=args.port, open_browser=args.open)
+        return serve(args.db or cfg.db_path, port=args.port, hmac_key=cfg.hmac_key, open_browser=args.open)
     if args.cmd == "policy":
         from agent_ledger import policy_cli
 

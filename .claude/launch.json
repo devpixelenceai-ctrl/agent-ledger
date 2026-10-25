@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard-demo",
+      "runtimeExecutable": ".venv/bin/agent-ledger",
+      "runtimeArgs": ["serve", "--demo", "--port", "8799"],
+      "port": 8799
+    }
+  ]
+}

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent ledger</title>
+<style nonce="{{NONCE}}">
+:root{
+  --paper:#f2f4f3;--panel:#fbfcfb;--ink:#16201b;--graphite:#5a6660;--rule:#d3dad6;--hover:#e7ece9;
+  --deny:#c0341d;--ask:#a86a12;--allow:#2c7a57;--none:#9aa59f;--add:#e3f1e8;--del:#f8e3df;
+  --sans:"Avenir Next","Avenir","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0f1412;--panel:#151c19;--ink:#e2e9e5;--graphite:#93a19a;--rule:#27322d;--hover:#1c2521;
+  --deny:#f07a62;--ask:#e3a948;--allow:#5cc497;--none:#5d6a64;--add:#163222;--del:#3a1d17;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.top{display:flex;align-items:baseline;gap:16px;padding:14px 24px;border-bottom:1px solid var(--rule)}
+.brand{font-weight:600;font-size:17px;letter-spacing:-.01em}
+.chain{margin-left:auto;font-size:13px}
+.chain.ok{color:var(--allow)}.chain.bad{color:var(--deny);font-weight:600}
+.shell{display:grid;grid-template-columns:300px 1fr;align-items:start}
+.rail{border-right:1px solid var(--rule);overflow:auto;max-height:100vh;position:sticky;top:0;min-height:calc(100vh - 52px)}
+.rail h2,.section-title{font-size:13px;font-weight:600;color:var(--graphite);margin:18px 20px 8px}
+.sess{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 20px;cursor:pointer;border-left:3px solid transparent}
+.sess:hover{background:var(--hover)}
+.sess[aria-current="true"]{background:var(--panel);border-left-color:var(--ink)}
+.sess .where{font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .when{font-size:12.5px;color:var(--graphite)}
+.sess .when,.sess .id{display:block}.sess .id{font:12px var(--mono);color:var(--graphite)}
+.sess .counts{font-size:12.5px;margin-right:10px}
+.c-deny{color:var(--deny)}.c-ask{color:var(--ask)}.c-allow{color:var(--allow)}
+main{padding:8px 32px 80px;min-width:0;max-width:1100px}
+.risky{list-style:none;margin:0;padding:0;border:1px solid var(--rule);border-radius:6px;background:var(--panel)}
+.risky li{display:grid;grid-template-columns:132px minmax(0,1fr) auto;gap:12px;padding:9px 14px;border-top:1px solid var(--rule);align-items:baseline;cursor:pointer}
+.risky li:first-child{border-top:0}
+.risky li:hover{background:var(--hover)}
+.risky .what{font-family:var(--mono);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.risky .rule{font-size:12.5px;color:var(--graphite)}
+.empty{color:var(--graphite);padding:16px 0}
+.empty.pad{padding:0 20px}
+h1{font-size:26px;line-height:1.2;margin:28px 0 4px;letter-spacing:-.015em;word-break:break-all}
+.meta{color:var(--graphite);font-size:13.5px;margin:0 0 18px}
+.meta span+span::before{content:"/";margin:0 8px;color:var(--rule)}
+/* the barcode: one bar per tool call, coloured by decision */
+.barcode{display:flex;align-items:flex-end;gap:3px;overflow-x:auto;height:56px;padding:6px 0;border-bottom:1px solid var(--rule)}
+.bar{flex:0 0 7px;border:0;padding:0;cursor:pointer;background:var(--none);height:40%;border-radius:1px}
+.bar.allow{background:var(--allow);height:40%;opacity:.55}
+.bar.ask{background:var(--ask);height:72%}
+.bar.deny,.bar.error{background:var(--deny);height:100%}
+.bar:hover,.bar:focus-visible{opacity:1;outline-offset:1px}
+.legend{display:flex;gap:18px;font-size:13px;color:var(--graphite);margin:8px 0 22px;flex-wrap:wrap}
+.legend b{color:var(--ink);font-weight:600;margin-right:4px}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13.5px}
+.filters select{background:var(--panel);border:1px solid var(--rule);border-radius:5px;padding:4px 8px}
+.filters label{display:flex;gap:6px;align-items:center;color:var(--graphite)}
+.timeline{list-style:none;margin:0;padding:0;position:relative}
+.timeline::before{content:"";position:absolute;left:95px;top:0;bottom:0;width:1px;background:var(--rule)}
+.ev{display:grid;grid-template-columns:80px 30px 1fr;gap:0 0;align-items:start;padding:6px 0;scroll-margin-top:12px}
+.ev .t{font-size:12.5px;color:var(--graphite);padding-top:3px;text-align:right;padding-right:10px}
+.mark{width:11px;height:11px;margin:6px auto 0;background:var(--none);border-radius:50%;position:relative;z-index:1;box-shadow:0 0 0 3px var(--paper)}
+.mark.allow{background:var(--allow)}
+.mark.ask{background:var(--paper);border:2px solid var(--ask);border-radius:2px;transform:rotate(45deg);width:10px;height:10px}
+.mark.deny,.mark.error{background:var(--deny);border-radius:1px;width:12px;height:12px}
+.mark.prompt{background:var(--ink);border-radius:50%}
+.ev .body{min-width:0}
+.ev button.head{all:unset;display:block;cursor:pointer;width:100%;border-radius:4px;padding:2px 6px;margin-left:-6px}
+.ev button.head:hover{background:var(--hover)}
+.ev button.head:focus-visible{outline:2px solid var(--ink)}
+.ev .line{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ev .kind{font-size:12.5px;color:var(--graphite);min-width:84px}
+.ev .sum{font-family:var(--mono);font-size:13px;word-break:break-word}
+.ev.prompt .sum{font-family:var(--sans);font-size:15px;font-style:italic}
+.ev .verdict{font-size:12.5px;font-weight:600}
+.ev .why{font-size:13px;color:var(--graphite)}
+.ev .more{margin:8px 0 6px;border-left:2px solid var(--rule);padding-left:12px}
+.ev .more[hidden]{display:none}
+pre{font:12.5px/1.45 var(--mono);margin:6px 0;padding:10px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:5px;overflow:auto;max-height:420px}
+.diff span{display:block;white-space:pre}
+.diff .a{background:var(--add)}.diff .d{background:var(--del)}.diff .h{color:var(--graphite)}
+.kv{font-size:13px;margin:4px 0}.kv dt{color:var(--graphite);float:left;width:110px}.kv dd{margin:0 0 2px 110px;word-break:break-all}
+@media (max-width:820px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--rule)}
+  main{padding:8px 16px 60px}
+  .timeline::before{left:71px}.ev{grid-template-columns:56px 30px 1fr}
+  .risky li{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:no-preference){.ev .more{animation:open .16s ease-out}@keyframes open{from{opacity:0;transform:translateY(-3px)}to{opacity:1}}}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">Agent ledger</span>
+  <span class="chain" id="chain">Checking the log…</span>
+</header>
+<div class="shell">
+  <nav class="rail" aria-label="Sessions">
+    <h2>Sessions</h2>
+    <div id="sessions"><p class="empty pad">Loading…</p></div>
+  </nav>
+  <main>
+    <h2 class="section-title" id="risky-title">Riskiest actions, all sessions</h2>
+    <ul class="risky" id="risky"></ul>
+    <section id="session" hidden>
+      <h1 id="s-title"></h1>
+      <p class="meta" id="s-meta"></p>
+      <div class="barcode" id="barcode" role="list" aria-label="Tool calls in order, coloured by decision"></div>
+      <div class="legend" id="legend"></div>
+      <div class="filters">
+        <select id="f-decision" aria-label="Decision">
+          <option value="">All decisions</option><option value="deny">Blocked</option><option value="ask">Needed approval</option><option value="allow">Allowed</option>
+        </select>
+        <select id="f-tool" aria-label="Tool"><option value="">All tools</option></select>
+        <select id="f-severity" aria-label="Severity">
+          <option value="">Any severity</option><option value="critical">Critical</option><option value="high">High or worse</option><option value="medium">Medium or worse</option>
+        </select>
+        <label><input type="checkbox" id="f-follow" checked> Hide follow-up events</label>
+      </div>
+      <ol class="timeline" id="timeline"></ol>
+    </section>
+  </main>
+</div>
+<script nonce="{{NONCE}}">
+"use strict";
+// All logged content is inserted with textContent; never parse logged data as HTML.
+const $ = (id) => document.getElementById(id);
+function el(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false)
+    n.append(typeof kid === "string" || typeof kid === "number" ? document.createTextNode(String(kid)) : kid);
+  return n;
+}
+async function api(path) {
+  const r = await fetch(path, {headers: {"Accept": "application/json"}});
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+const SEV = {critical: 5, high: 4, medium: 3, low: 2, info: 1};
+const VERDICT = {deny: "Blocked", ask: "Needed approval", allow: "Allowed", error: "Policy error"};
+const OUTCOME = {approved: "approved by a person", denied: "denied by a person", "not run": "never ran", blocked: "", allowed: "", ran: "ran", recorded: ""};
+const FOLLOW_UPS = new Set(["PostToolUse", "PostToolUseFailure", "PermissionRequest", "PermissionDenied"]);
+const time = (ts) => (ts || "").slice(11, 19);
+const day = (ts) => (ts || "").slice(0, 16).replace("T", " ");
+const base = (p) => (p || "").split("/").filter(Boolean).pop() || p || "(unknown directory)";
+let current = null, sessions = [];
+
+async function loadChain() {
+  try {
+    const v = await api("/api/verify");
+    const c = $("chain");
+    c.className = "chain " + (v.ok ? "ok" : "bad");
+    c.textContent = v.ok ? `Log intact: ${v.checked} events verified` :
+      `Log tampered: ${v.reason}${v.first_bad_seq ? " (event " + v.first_bad_seq + ")" : ""}`;
+    c.title = v.ok ? `Head hash ${v.head_hash}` : "";
+  } catch (e) { $("chain").textContent = "Could not verify the log"; }
+}
+
+async function loadSessions() {
+  const box = $("sessions");
+  try { sessions = await api("/api/sessions"); } catch (e) {
+    box.replaceChildren(el("p", {class: "empty pad", text: "No ledger yet. Run agent-ledger init in a project, then start a Claude Code session."}));
+    return;
+  }
+  if (!sessions.length) { box.replaceChildren(el("p", {class: "empty pad", text: "No sessions recorded yet."})); return; }
+  box.replaceChildren(...sessions.map((s) => el("button", {class: "sess", "data-id": s.session_id, onclick: () => openSession(s.session_id)},
+    el("span", {class: "where", text: base(s.cwd)}),
+    el("span", {class: "when", text: day(s.started_at) + " UTC" + (s.git_branch ? ", " + s.git_branch : "")}),
+    el("span", {class: "id", text: s.session_id.slice(0, 8)}),
+    el("span", {class: "counts", text: `${s.tool_calls} calls`}),
+    s.blocked ? el("span", {class: "counts c-deny", text: `${s.blocked} blocked`}) : null,
+    s.asked ? el("span", {class: "counts c-ask", text: `${s.asked} asked`}) : null,
+  )));
+}
+
+async function loadRisky() {
+  const list = $("risky");
+  let rows = [];
+  try { rows = await api("/api/risky"); } catch (e) {}
+  if (!rows.length) { list.replaceChildren(el("li", {class: "empty", text: "Nothing risky recorded: no blocked actions and no approvals needed."})); return; }
+  list.replaceChildren(...rows.slice(0, 8).map((r) => el("li", {tabindex: 0, onclick: () => openSession(r.session_id, r.seq),
+      onkeydown: (e) => { if (e.key === "Enter") openSession(r.session_id, r.seq); }},
+    el("span", {class: "verdict c-" + r.decision, text: VERDICT[r.decision] || r.decision}),
+    el("span", {class: "what", text: r.summary || ""}),
+    el("span", {class: "rule", text: r.rule_id || ""}))));
+}
+
+async function openSession(id, focusSeq) {
+  const data = await api("/api/session/" + encodeURIComponent(id));
+  current = data;
+  history.replaceState(null, "", "#" + encodeURIComponent(data.session.session_id));
+  for (const b of document.querySelectorAll(".sess")) b.setAttribute("aria-current", b.dataset.id === data.session.session_id ? "true" : "false");
+  const s = data.session;
+  $("session").hidden = false;
+  $("s-title").textContent = base(s.cwd);
+  $("s-meta").replaceChildren(
+    el("span", {text: `Started ${day(s.started_at)} UTC`}),
+    s.ended_at ? el("span", {text: `ended ${day(s.ended_at)}`}) : el("span", {text: "still open"}),
+    s.git_branch || s.git_commit ? el("span", {text: `${s.git_branch || "detached"} at ${(s.git_commit || "").slice(0, 10)}`}) : null,
+    s.model ? el("span", {text: s.model}) : null,
+    el("span", {text: s.session_id}));
+  const calls = data.events.filter((e) => e.event_type === "PreToolUse");
+  $("barcode").replaceChildren(...calls.map((e) => el("button", {class: "bar " + (e.decision || "none"), role: "listitem",
+    "aria-label": `${VERDICT[e.decision] || "Recorded"}: ${e.summary || ""}`, title: e.summary || "", onclick: () => focus(e.seq)})));
+  const n = (d) => calls.filter((e) => e.decision === d).length;
+  $("legend").replaceChildren(
+    el("span", {}, el("b", {class: "c-deny", text: n("deny")}), "blocked"),
+    el("span", {}, el("b", {class: "c-ask", text: n("ask")}), "needed approval"),
+    el("span", {}, el("b", {class: "c-allow", text: n("allow")}), "allowed"),
+    el("span", {}, el("b", {text: calls.length}), "tool calls"));
+  const tools = [...new Set(calls.map((e) => e.tool_name).filter(Boolean))].sort();
+  $("f-tool").replaceChildren(el("option", {value: "", text: "All tools"}), ...tools.map((t) => el("option", {value: t, text: t})));
+  renderTimeline();
+  if (focusSeq) focus(focusSeq);
+}
+
+function visible(e) {
+  const d = $("f-decision").value, t = $("f-tool").value, sev = $("f-severity").value;
+  if ($("f-follow").checked && FOLLOW_UPS.has(e.event_type)) return false;
+  if (d && e.decision !== d) return false;
+  if (t && e.tool_name !== t) return false;
+  if (sev && (SEV[e.severity] || 0) < SEV[sev]) return false;
+  return true;
+}
+
+function details(e) {
+  const box = el("div", {class: "more", hidden: true});
+  const kv = el("dl", {class: "kv"});
+  const add = (k, v) => { if (v) kv.append(el("dt", {text: k}), el("dd", {text: v})); };
+  add("Decision", e.decision ? `${VERDICT[e.decision] || e.decision}${e.outcome && OUTCOME[e.outcome] ? ", " + OUTCOME[e.outcome] : ""}` : "");
+  add("Rule", e.rule_id); add("Severity", e.severity); add("Reason", e.reason); add("Time", e.ts); add("Policy", e.policy_hash);
+  box.append(kv);
+  if (e.diff && e.diff.length) {
+    const pre = el("pre", {class: "diff", "aria-label": "Changes"});
+    for (const line of e.diff) {
+      const c = line.startsWith("@@") || line.startsWith("---") || line.startsWith("+++") ? "h" : line.startsWith("+") ? "a" : line.startsWith("-") ? "d" : "";
+      pre.append(el("span", {class: c, text: c === "h" ? relative(line) : line}));
+    }
+    box.append(pre);
+  }
+  box.append(el("details", {}, el("summary", {text: "Recorded data (secrets redacted)"}),
+    el("pre", {text: JSON.stringify(e.detail, null, 2)})));
+  return box;
+}
+
+// Paths inside the session's directory read better relative to it.
+function relative(text) {
+  const cwd = current && current.session.cwd;
+  return cwd ? text.split(cwd.replace(/\/$/, "") + "/").join("") : text;
+}
+
+function renderTimeline() {
+  if (!current) return;
+  const items = current.events.filter(visible).map((e) => {
+    const isPrompt = e.event_type === "UserPromptSubmit";
+    const markClass = isPrompt ? "prompt" : (e.event_type === "PreToolUse" ? (e.decision || "") : "");
+    const more = details(e);
+    const label = isPrompt ? "Prompt" : e.event_type === "PreToolUse" ? (e.tool_name || "Tool") : e.event_type.replace(/([a-z])([A-Z])/g, "$1 $2");
+    const head = el("button", {class: "head", "aria-expanded": "false", onclick: (ev) => {
+        more.hidden = !more.hidden; ev.currentTarget.setAttribute("aria-expanded", String(!more.hidden)); }},
+      el("div", {class: "line"},
+        el("span", {class: "kind", text: label}),
+        el("span", {class: "sum", text: isPrompt ? (e.prompt || e.summary || "") : relative((e.summary || "").replace(/^[A-Za-z_]+: /, ""))})),
+      e.decision === "deny" || e.decision === "ask" || e.decision === "error" ? el("div", {class: "line"},
+        el("span", {class: "verdict c-" + (e.decision === "error" ? "deny" : e.decision),
+          text: (VERDICT[e.decision] || "") + (e.outcome && OUTCOME[e.outcome] ? ", " + OUTCOME[e.outcome] : "")}),
+        el("span", {class: "why", text: e.reason || ""})) : null);
+    return el("li", {class: "ev" + (isPrompt ? " prompt" : ""), id: "ev-" + e.seq},
+      el("span", {class: "t", text: time(e.ts)}), el("span", {class: "mark " + markClass}), el("div", {class: "body"}, head, more));
+  });
+  $("timeline").replaceChildren(...(items.length ? items : [el("li", {class: "empty", text: "No events match these filters."})]));
+}
+
+function focus(seq) {
+  let node = document.getElementById("ev-" + seq);
+  if (!node) { for (const id of ["f-decision", "f-tool", "f-severity"]) $(id).value = ""; $("f-follow").checked = false; renderTimeline(); node = document.getElementById("ev-" + seq); }
+  if (!node) return;
+  node.scrollIntoView({block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  const head = node.querySelector("button.head");
+  if (head && head.getAttribute("aria-expanded") === "false") head.click();
+  head && head.focus({preventScroll: true});
+}
+
+for (const id of ["f-decision", "f-tool", "f-severity", "f-follow"]) $(id).addEventListener("change", renderTimeline);
+(async () => {
+  await Promise.all([loadChain(), loadSessions(), loadRisky()]);
+  const want = decodeURIComponent(location.hash.slice(1));
+  if (want) openSession(want).catch(() => {});
+  else if (sessions.length) openSession(sessions[0].session_id).catch(() => {});
+})();
+</script>
+</body>
+</html>

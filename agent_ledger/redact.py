@@ -200,7 +200,7 @@ def is_secret_path(path: str) -> bool:
 
 _SHELL_QUOTES = re.compile(r"""['"]|\\(?=\S)""")
 _FILE_PATH_KEYS = ("file_path", "notebook_path", "path")
-_CONTENT_KEYS = ("content", "old_string", "new_string", "edits", "new_source", "old_source")
+_CONTENT_KEYS = ("content", "old_string", "new_string", "edits", "new_source", "old_source", "patch")
 
 
 def redact_event_payload(payload: dict) -> dict:
@@ -208,8 +208,11 @@ def redact_event_payload(payload: dict) -> dict:
     payload = dict(payload)
     ti = payload.get("tool_input")
     if isinstance(ti, dict):
-        fp = next((ti[k] for k in _FILE_PATH_KEYS if isinstance(ti.get(k), str)), None)
-        if fp and is_secret_path(fp):
+        paths = [ti[k] for k in _FILE_PATH_KEYS if isinstance(ti.get(k), str)]
+        for k in ("file_paths", "delete_paths"):  # multi-file patches
+            if isinstance(ti.get(k), list):
+                paths += [p for p in ti[k] if isinstance(p, str)]
+        if any(is_secret_path(p) for p in paths):
             ti = {k: (SECRET_FILE if k in _CONTENT_KEYS else v) for k, v in ti.items()}
             payload["tool_input"] = ti
             if "tool_response" in payload:

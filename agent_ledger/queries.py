@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 SEVERITY_RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1, None: 0}
 DECISION_RANK = {"deny": 3, "error": 3, "ask": 2, "allow": 1, None: 0}
 TOOL_EVENTS = ("PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "PermissionDenied")
-FILE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
+FILE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch")
 
 
 def parse_since(value: str) -> str:

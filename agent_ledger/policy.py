@@ -372,9 +372,12 @@ def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = No
     if tool in ("Read", "NotebookRead"):
         if isinstance(fp, str):
             u.reads.append(c(fp))
-    elif tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
-        if isinstance(fp, str):
-            u.writes.append(c(fp))
+    elif tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch"):
+        # a patch (OpenCode apply_patch) touches several files: every one is checked
+        paths = ti.get("file_paths") if isinstance(ti.get("file_paths"), list) else ([fp] if isinstance(fp, str) else [])
+        u.writes += [c(p) for p in paths if isinstance(p, str)]
+        if isinstance(ti.get("delete_paths"), list):
+            u.deletes += [c(p) for p in ti["delete_paths"] if isinstance(p, str)]
     elif tool in ("Glob", "Grep", "LS"):
         base = ti.get("path") if isinstance(ti.get("path"), str) else ctx.cwd
         u.reads.append(c(base))

@@ -308,7 +308,7 @@ severity = "info"
 [[rule]]
 id = "files.edit-in-project"
 description = "Editing files inside the project (and temp dirs)"
-tools = ["Edit", "Write", "MultiEdit", "NotebookEdit"]
+tools = ["Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch"]
 within_project = true
 decision = "allow"
 severity = "info"

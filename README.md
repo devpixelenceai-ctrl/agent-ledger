@@ -93,7 +93,8 @@ The starter policy, briefly:
   - `terraform apply`, `kubectl` and deploys;
   - network access to domains not on the allowlist;
   - bulk deletes;
-  - third-party MCP tools.
+  - third-party MCP tools;
+  - `git add` or `git commit` of content that looks like a secret. The content itself is scanned, not just the file names.
 - **Allowed:** reads, searches, tests, and edits inside the project.
 
 ## The policy format

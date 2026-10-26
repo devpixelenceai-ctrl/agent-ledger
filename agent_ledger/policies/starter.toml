@@ -174,6 +174,15 @@ decision = "ask"
 severity = "medium"
 
 [[rule]]
+id = "git.secret-in-commit"
+description = "git add / git commit about to record secrets (scans the actual content, not just file names)"
+tools = ["Bash"]
+check = "commits_secret_content"
+decision = "ask"
+severity = "high"
+reason = "the change being added or committed appears to contain secrets"
+
+[[rule]]
 id = "git.push"
 description = "Pushing to a remote"
 tools = ["Bash"]

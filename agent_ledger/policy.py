@@ -35,7 +35,7 @@ COMMAND_LEVEL_CHECKS = {"remote_pipe_to_shell", "pipe_to_shell", "unparseable"}
 SEGMENT_CHECKS = {
     "delete_outside_project", "write_outside_project", "unknown_write_target", "too_many_deletes",
     "git_force_push_protected", "chmod_world_writable", "dynamic_command", "inline_code", "runs_script",
-    "git_config_override",
+    "git_config_override", "commits_secret_content",
 }
 DELETE_CMDS = {"rm", "rmdir", "unlink", "shred", "srm", "trash", "trash-put"}
 SPECIAL_PATHS = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/stdin", "/dev/tty", "/dev/zero",
@@ -134,7 +134,7 @@ def _classify(text: str, cwd: str | None, ctx: Context) -> PathRef:
 
 class Unit:
     __slots__ = ("tool", "level", "text", "segment", "parsed", "reads", "writes", "deletes", "hosts",
-                 "flags", "mcp_source", "label")
+                 "flags", "mcp_source", "label", "note")
 
     def __init__(self, tool, level, text, label=None):
         self.tool, self.level, self.text = tool, level, text
@@ -147,6 +147,7 @@ class Unit:
         self.hosts: list[str] = []
         self.flags: set[str] = set()
         self.mcp_source: str | None = None
+        self.note: str | None = None  # detail a check adds to the decision reason (never secret values)
 
     def all_paths(self):
         return self.reads + self.writes + self.deletes
@@ -588,6 +589,25 @@ def _chmod_world_writable(u: Unit, ctx: Context) -> bool:
     return False
 
 
+def _commits_secret_content(u: Unit, ctx: Context) -> bool:
+    """git add / git commit about to record secrets (scans the content; see secretscan.py)."""
+    seg = u.segment
+    if seg is None or seg.cmd != "git" or seg.argv[1:2] not in (["add"], ["commit"]) or seg.dynamic_cmd:
+        return False
+    from agent_ledger.secretscan import ScanIncomplete, scan_git_command
+
+    try:
+        findings = scan_git_command(seg.argv, seg.cwd or ctx.cwd)
+    except ScanIncomplete as e:
+        u.note = f"could not scan the change ({e})"
+        return True
+    if not findings:
+        return False
+    shown = ", ".join(f"{path}: {kind}" for path, kind in findings[:5])
+    u.note = shown + (f" and {len(findings) - 5} more" if len(findings) > 5 else "")
+    return True
+
+
 def _too_many_deletes(u: Unit, ctx: Context) -> bool:
     if u.segment is not None and u.segment.cmd in DELETE_CMDS and "args_dynamic" in u.flags:
         return True  # xargs rm / find -exec rm: targets only known at runtime
@@ -614,6 +634,7 @@ CHECKS = {
     "inline_code": lambda u, ctx: "inline_code" in u.flags,
     "runs_script": lambda u, ctx: "runs_script" in u.flags,
     "git_config_override": lambda u, ctx: "git_config_override" in u.flags,
+    "commits_secret_content": lambda u, ctx: _commits_secret_content(u, ctx),
 }
 
 
@@ -925,7 +946,8 @@ def evaluate(policy: Policy, tool: str, tool_input: dict, ctx: Context, raw: dic
                 matched = rule
                 break
         if matched is not None:
-            d = Decision(matched.decision, matched.id, matched.severity, matched.reason, policy.hash)
+            reason = f"{matched.reason} ({u.note})" if u.note else matched.reason
+            d = Decision(matched.decision, matched.id, matched.severity, reason, policy.hash)
         elif u.level == "command":
             if explain is not None:
                 explain.units.append((u.level, u.label, None, "-"))

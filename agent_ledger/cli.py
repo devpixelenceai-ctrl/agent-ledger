@@ -220,7 +220,8 @@ def _init_policy_and_config(args, project) -> int:
             home.mkdir(parents=True, exist_ok=True, mode=0o700)
             cfg.write_text('[ledger]\nfail_mode = "closed"\n', "utf-8")
             print(f"Wrote {cfg} (fail_mode = closed)")
-    print("Next: start (or continue) a Claude Code session; events land in the ledger. Check with: agent-ledger verify")
+    agent = "an OpenCode session (opencode / opencode run)" if args.agent == "opencode" else "a Claude Code session"
+    print(f"Next: start (or continue) {agent}; events land in the ledger. Check with: agent-ledger verify")
     return 0
 
 

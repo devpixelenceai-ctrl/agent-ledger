@@ -317,3 +317,10 @@ def test_js_plugin_when_agent_ledger_is_missing(tmp_path, fail_closed, expected)
     assert r.returncode == 0, r.stderr
     res = json.loads(r.stdout.strip().splitlines()[-1])
     assert res["allow"].startswith(expected)
+
+
+def test_init_next_steps_name_the_right_agent(tmp_path):
+    repo, home = tmp_path / "repo", tmp_path / "home"
+    repo.mkdir()
+    out = cli("init", "--agent", "opencode", "--project", str(repo), home=home).stdout
+    assert "OpenCode session" in out and "Claude Code" not in out

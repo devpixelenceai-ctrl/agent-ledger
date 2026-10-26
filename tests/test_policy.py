@@ -132,3 +132,21 @@ def test_evaluation_is_fast(env):
         env.decide(c)
     per_call_ms = (time.perf_counter() - t) * 1000 / len(cmds)
     assert per_call_ms < 5, per_call_ms
+
+
+def test_bad_regex_never_reaches_the_cache(tmp_path):
+    bad = '[[rule]]\nid="x"\ndecision="deny"\ncommand="("\n'
+    with pytest.raises(PolicyError, match="regex"):
+        parse_policy(bad, "bad.toml", tmp_path / "cache")
+    assert not list((tmp_path / "cache").glob("*.json")) if (tmp_path / "cache").exists() else True
+
+
+def test_cached_policy_behaves_like_fresh_parse(env, tmp_path):
+    from agent_ledger.policy import STARTER
+
+    text = STARTER.read_text()
+    fresh = parse_policy(text, "s", tmp_path / "c")      # miss: validates, writes cache
+    cached = parse_policy(text, "s", tmp_path / "c")     # hit: lazy regexes
+    assert list((tmp_path / "c").glob("*.json"))
+    for cmd in ("git push origin main", "npm install x", "pytest -q", "rm -rf /", "terraform apply"):
+        assert env.decide(cmd, policy=fresh).rule_id == env.decide(cmd, policy=cached).rule_id

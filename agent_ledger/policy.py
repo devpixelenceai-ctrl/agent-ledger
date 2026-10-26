@@ -610,7 +610,7 @@ def _domain_ok(host: str, allowed: list[str]) -> bool:
 
 
 class Rule:
-    def __init__(self, data: dict, index: int):
+    def __init__(self, data: dict, index: int, validate: bool = True):
         unknown = set(data) - RULE_KEYS
         if unknown:
             raise PolicyError(f"rule #{index + 1}: unknown key(s) {sorted(unknown)}")
@@ -645,10 +645,13 @@ class Rule:
             except re.error as e:
                 raise PolicyError(f"{where}: bad tool regex {t!r}: {e}") from e
         self.commands = strlist("commands")
-        try:
-            self.command = [re.compile(p) for p in (strlist("command") or [])]
-        except re.error as e:
-            raise PolicyError(f"{where}: bad command regex: {e}") from e
+        # Command regexes compile on first use: most rules are ruled out by cheaper conditions
+        # for any given call, and compiling ~70 patterns per hook process is the biggest
+        # start-up cost. Validation compiles them all whenever the TOML is actually parsed.
+        self._command_src = strlist("command") or []
+        self._command: list[re.Pattern] | None = None
+        if validate:
+            self.command  # noqa: B018  (compile now to surface regex errors)
         self.paths = [PathPattern(p) for p in (strlist("paths") or [])]
         self.exclude = [PathPattern(p) for p in (strlist("exclude_paths") or [])]
         self.access = data.get("access", "any")
@@ -672,6 +675,15 @@ class Rule:
         if self.command_level and (self.commands or self.paths or self.domains or self.within_project is not None):
             raise PolicyError(f"{where}: command-level checks can only be combined with 'tools' and 'command'")
         self.mcp_source = strlist("mcp_source")
+
+    @property
+    def command(self) -> list[re.Pattern]:
+        if self._command is None:
+            try:
+                self._command = [re.compile(p) for p in self._command_src]
+            except re.error as e:
+                raise PolicyError(f"rule {self.id!r}: bad command regex: {e}") from e
+        return self._command
 
     def _tool_ok(self, tool: str) -> bool:
         if self.tools is None:
@@ -703,7 +715,7 @@ class Rule:
         if self.commands is not None:
             if u.segment is None or not any(fnmatch.fnmatchcase(u.segment.cmd, c) for c in self.commands):
                 return False
-        if self.command and not any(rx.search(u.text) for rx in self.command):
+        if self._command_src and not any(rx.search(u.text) for rx in self.command):
             return False
         if self.paths:
             hit = False
@@ -763,18 +775,30 @@ def _toml(text: str, source: str) -> dict:
         raise PolicyError(f"{source}: invalid TOML: {e}") from e
 
 
-def _cached_toml(text: str, source: str, cache_dir: Path | None) -> dict:
-    """Parsed TOML, cached as JSON keyed by content hash (tomllib costs ~4 ms per hook call)."""
+def _cache_file(text: str, cache_dir: Path) -> Path:
+    return Path(cache_dir) / f"policy-{_sha256(text.encode('utf-8'))}.json"
+
+
+def _read_cache(text: str, cache_dir: Path | None) -> dict | None:
     if cache_dir is None:
-        return _toml(text, source)
+        return None
     import json
 
-    f = Path(cache_dir) / f"policy-{_sha256(text.encode('utf-8'))}.json"
     try:
-        return json.loads(f.read_text("utf-8"))
+        data = json.loads(_cache_file(text, cache_dir).read_text("utf-8"))
     except (OSError, ValueError):
-        pass
-    data = _toml(text, source)
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_cache(text: str, cache_dir: Path | None, data: dict) -> None:
+    """Cache parsed TOML as JSON keyed by content hash (tomllib costs ~4 ms per hook call).
+    Only called after the policy validated, so a cache hit may skip validation."""
+    if cache_dir is None:
+        return
+    import json
+
+    f = _cache_file(text, cache_dir)
     try:
         Path(cache_dir).mkdir(parents=True, exist_ok=True, mode=0o700)
         tmp = f.with_name(f.name + f".{os.getpid()}.tmp")
@@ -784,11 +808,19 @@ def _cached_toml(text: str, source: str, cache_dir: Path | None) -> dict:
         os.replace(tmp, f)
     except OSError:
         pass
-    return data
 
 
 def parse_policy(text: str, source: str = "<string>", cache_dir: Path | None = None) -> Policy:
-    data = _cached_toml(text, source, cache_dir)
+    cached = _read_cache(text, cache_dir)
+    validate = cached is None
+    data = _toml(text, source) if cached is None else cached
+    policy = _build_policy(data, text, source, validate)
+    if validate:
+        _write_cache(text, cache_dir, data)
+    return policy
+
+
+def _build_policy(data: dict, text: str, source: str, validate: bool) -> Policy:
     unknown = set(data) - {"settings", "rule"}
     if unknown:
         raise PolicyError(f"{source}: unknown top-level key(s) {sorted(unknown)}")
@@ -811,7 +843,9 @@ def parse_policy(text: str, source: str = "<string>", cache_dir: Path | None = N
         raise PolicyError(f"{source}: use [[rule]] tables for rules")
     rules, seen = [], set()
     for i, r in enumerate(raw_rules):
-        rule = Rule(r, i)
+        if not isinstance(r, dict):
+            raise PolicyError(f"{source}: rule #{i + 1} must be a table")
+        rule = Rule(r, i, validate=validate)
         if rule.id in seen:
             raise PolicyError(f"{source}: duplicate rule id {rule.id!r}")
         seen.add(rule.id)

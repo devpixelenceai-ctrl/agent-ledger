@@ -153,7 +153,18 @@ The hook runs before every tool call, so it is kept lean:
 - git information is read from `.git` files directly, with no subprocess;
 - parsed policies are cached as JSON.
 
-`tests/test_benchmark.py` spawns the real hook against a ledger of 3,000+ events and asserts **p95 < 50 ms**. On an Apple Silicon laptop, p95 is about 32–39 ms, and most of that is Python start-up.
+`tests/test_benchmark.py` spawns the real hook against a ledger of 3,000+ events and asserts **p95 < 50 ms**. It also samples a bare Python interpreter alongside, so you can see whose time it is.
+
+Measured on an Apple Silicon laptop:
+
+| Conditions | Hook p95 | Interpreter alone | agent-ledger's share |
+|---|---|---|---|
+| Idle | 32–41 ms (dev venv and pipx install) | ~18 ms | ~14–20 ms |
+| Under load | 55–80 ms | 33–45 ms | 15–40 ms |
+
+The 50 ms budget holds on an idle machine. Under load, Python start-up alone can consume most of it. That is the cost of a Python, standard-library-only hook.
+
+CI runs the benchmark in report-only mode, because shared runners make wall-clock budgets meaningless. The deterministic guard that *is* enforced in CI is a test that fails if anything heavy is imported on the hook's hot path.
 
 ## Troubleshooting
 

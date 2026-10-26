@@ -106,9 +106,19 @@ def _main_slow(argv: list[str]) -> int:
     return 2
 
 
-def _cmd_init(args) -> int:
+def _absolute_hook_command() -> str:
     import os
     import shlex
+
+    script = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
+    if os.path.basename(script) == "agent-ledger" and os.access(script, os.X_OK):
+        return f"{shlex.quote(script)} hook"  # the console script (e.g. ~/.local/bin/agent-ledger)
+    return f"{shlex.quote(sys.executable)} -m agent_ledger hook"
+
+
+def _cmd_init(args) -> int:
+    import os
+    import shutil
     from pathlib import Path
 
     from agent_ledger.config import ledger_home
@@ -119,9 +129,15 @@ def _cmd_init(args) -> int:
     if args.command:
         command = args.command
     elif args.absolute:
-        command = f"{shlex.quote(sys.executable)} -m agent_ledger hook"
-    else:
+        command = _absolute_hook_command()
+    elif shutil.which("agent-ledger"):
         command = "agent-ledger hook"
+    else:
+        # A bare command that is not on PATH fails with "command not found", which Claude Code
+        # treats as non-blocking: the session would silently run ungoverned.
+        command = _absolute_hook_command()
+        print("Note: `agent-ledger` is not on your PATH (try `pipx ensurepath`), so the hook uses the full path:")
+        print(f"  {command}")
     try:
         changed = install_hooks(settings, command, fail_closed=args.fail_closed)
     except InitError as e:

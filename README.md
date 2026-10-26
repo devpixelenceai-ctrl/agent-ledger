@@ -155,6 +155,11 @@ The hook runs before every tool call, so it is kept lean:
 
 `tests/test_benchmark.py` spawns the real hook against a ledger of 3,000+ events and asserts **p95 < 50 ms**. On an Apple Silicon laptop, p95 is about 32–39 ms, and most of that is Python start-up.
 
+## Troubleshooting
+
+- **`agent-ledger: command not found` or no events logged.** pipx installs into `~/.local/bin`, which may not be on your `PATH`. `agent-ledger init` notices this and writes the full path into the hook command, but `pipx ensurepath` fixes it for your shell too. A hook that cannot start is treated by Claude Code as a non-blocking error, so the session runs **ungoverned**. Check for a "hook error" notice, or run `agent-ledger tail` after a tool call.
+- **Hooks feel slow (more than 50 ms).** Python start-up dominates, and it is much slower if the interpreter's standard library was never byte-compiled. A freshly installed Homebrew Python, combined with `PYTHONDONTWRITEBYTECODE=1`, can add about 40 ms per call. Install on an interpreter you already use (`pipx install --python python3.12 .`), or byte-compile its standard library once.
+
 ## Development
 
 ```bash

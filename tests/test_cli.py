@@ -15,7 +15,8 @@ def cli(*args, env=None, cwd=None):
 
 
 def test_init_then_hook_then_verify(ledger_home, project):
-    env = {"AGENT_LEDGER_HOME": str(ledger_home)}
+    bindir = os.path.dirname(sys.executable)  # where the dev install put the agent-ledger script
+    env = {"AGENT_LEDGER_HOME": str(ledger_home), "PATH": bindir + os.pathsep + os.environ.get("PATH", "")}
     r = cli("init", "--project", str(project), env=env)
     assert r.returncode == 0, r.stderr
     settings = json.loads((project / ".claude" / "settings.json").read_text())
@@ -130,3 +131,13 @@ def test_session_start_warns_about_untrusted_policy(ledger_home, project):
     env = {"AGENT_LEDGER_HOME": str(ledger_home), "CLAUDE_PROJECT_DIR": str(project)}
     r = run_hook(payload("session_start", cwd=str(project)), env=env)
     assert "not trusted" in json.loads(r.stdout)["systemMessage"]
+
+
+def test_init_uses_absolute_command_when_not_on_path(ledger_home, project):
+    # e.g. pipx put agent-ledger in ~/.local/bin but that is not on PATH: a bare command would
+    # fail with "command not found", which Claude Code treats as non-blocking (fail open).
+    env = {"AGENT_LEDGER_HOME": str(ledger_home), "PATH": "/usr/bin:/bin"}
+    r = cli("init", "--project", str(project), env=env)
+    assert r.returncode == 0, r.stderr
+    cmd = json.loads((project / ".claude" / "settings.json").read_text())["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    assert cmd != "agent-ledger hook" and cmd.endswith(" hook") and "not on your PATH" in r.stdout

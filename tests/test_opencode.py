@@ -324,3 +324,43 @@ def test_init_next_steps_name_the_right_agent(tmp_path):
     repo.mkdir()
     out = cli("init", "--agent", "opencode", "--project", str(repo), home=home).stdout
     assert "OpenCode session" in out and "Claude Code" not in out
+
+
+# ---------------------------------------------------------------- security review: apply_patch header parsing
+
+@pytest.mark.parametrize("header", [
+    "*** Add File:.opencode/plugins/agent-ledger.js",      # no space after colon (OpenCode trims)
+    "*** Add File:\t.opencode/plugins/agent-ledger.js",    # tab
+    "*** Add File:   .opencode/plugins/agent-ledger.js  ",  # extra spaces
+    "*** Update File:.agent-ledger.toml",
+    "*** Delete File:.agent-ledger.toml",
+    "*** Add File:.env",
+])
+def test_patch_headers_parsed_like_opencode(env, header):  # noqa: F811
+    patch = f"*** Begin Patch\n{header}\n+x\n*** End Patch"
+    assert decide(env, "apply_patch", {"patchText": patch}).decision == "deny", header
+
+
+def test_move_to_without_space_is_checked(env):  # noqa: F811
+    patch = "*** Begin Patch\n*** Update File: src/a.py\n*** Move to:.opencode/plugins/agent-ledger.js\n@@\n-a\n+b\n*** End Patch"
+    assert decide(env, "apply_patch", {"patchText": patch}).decision == "deny"
+
+
+def test_heredoc_wrapped_patch_is_parsed(env):  # noqa: F811
+    patch = "cat <<'EOF'\n*** Begin Patch\n*** Add File:.env\n+X=1\n*** End Patch\nEOF"
+    assert decide(env, "apply_patch", {"patchText": patch}).decision == "deny"
+
+
+@pytest.mark.parametrize("patch", [
+    "*** Begin Patch\n*** Add Fil: x\n+y\n*** End Patch",           # unknown header: no paths found
+    "*** Begin Patch\n*** Frobnicate File: x\n*** End Patch",
+    "something that is not a patch at all",
+    "*** Begin Patch\n*** Add File:\n+y\n*** End Patch",              # empty path
+])
+def test_patch_with_no_recognised_paths_is_never_allowed(env, patch):  # noqa: F811
+    assert decide(env, "apply_patch", {"patchText": patch}).decision != "allow", patch
+
+
+def test_patch_header_lines_inside_content_still_parse_targets(env):  # noqa: F811
+    ok = "*** Begin Patch\n*** Add File: src/ok.py\n+print(1)\n*** End Patch"
+    assert decide(env, "apply_patch", {"patchText": ok}).decision == "allow"

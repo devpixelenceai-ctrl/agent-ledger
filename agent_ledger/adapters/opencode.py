@@ -46,7 +46,11 @@ _PHASES = {"tool.before": "PreToolUse", "tool.after": "PostToolUse", "tool.error
            "chat.message": "UserPromptSubmit"}
 _EVENTS = {"session.created": "SessionStart", "session.idle": "Stop", "session.deleted": "SessionEnd",
            "session.error": "StopFailure"}
-_PATCH_LINE = re.compile(r"^\*\*\* (Add File|Update File|Move to|Delete File): (.+?)\s*$", re.M)
+# Mirrors opencode v1 packages/opencode/src/patch/index.ts: headers match by prefix (no space
+# required after the colon) and the path is trim()'d; a heredoc wrapper is stripped first.
+_PATCH_HEADERS = (("*** Add File:", "write"), ("*** Update File:", "write"), ("*** Move to:", "write"),
+                  ("*** Delete File:", "delete"))
+_PATCH_HEREDOC = re.compile(r"^(?:cat\s+)?<<['\"]?(\w+)['\"]?\s*\n([\s\S]*?)\n\1\s*$")
 
 
 def _abs(path: str, base: str | None) -> str:
@@ -54,13 +58,28 @@ def _abs(path: str, base: str | None) -> str:
 
 
 def _patch_input(args: dict, base: str | None) -> dict:
+    """Every path an apply_patch touches. Scans all lines (a superset of OpenCode's Begin/End window)
+    and marks the patch `unparsed` when it names no usable path, so policy can never allow it blind."""
     text = args.get("patchText") if isinstance(args.get("patchText"), str) else ""
-    writes, deletes = [], []
-    for kind, path in _PATCH_LINE.findall(text):
-        (deletes if kind == "Delete File" else writes).append(_abs(path, base))
+    cleaned = text.strip()
+    m = _PATCH_HEREDOC.match(cleaned)
+    if m:
+        cleaned = m.group(2)
+    writes, deletes, unparsed = [], [], False
+    for line in cleaned.split("\n"):
+        for prefix, kind in _PATCH_HEADERS:
+            if line.startswith(prefix):
+                path = line[len(prefix):].strip()
+                if not path:
+                    unparsed = True
+                else:
+                    (deletes if kind == "delete" else writes).append(_abs(path, base))
+                break
     ti = {"patch": text, "file_paths": writes, "delete_paths": deletes}
     if writes or deletes:
         ti["file_path"] = (writes or deletes)[0]
+    if unparsed or (cleaned and not (writes or deletes)):
+        ti["unparsed"] = True
     return ti
 
 

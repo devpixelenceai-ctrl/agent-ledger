@@ -64,10 +64,15 @@ class Context:
         self.ledger_home = os.path.realpath(ledger_home or env.get("AGENT_LEDGER_HOME") or os.path.join(self.home, ".agent-ledger"))
         settings = settings or {}
         temps = list(settings.get("temp_dirs", DEFAULT_TEMP)) + list(extra_temp or [])
-        temps += [self.home + p[1:] for p in AGENT_SCRATCH]
         if env.get("TMPDIR"):
             temps.append(env["TMPDIR"])
         self.temp = [os.path.realpath(os.path.expanduser(t)) for t in temps if t]
+        # Agent scratch dirs live in $HOME, where the agent itself can write. A symlink there would
+        # let it point "scratch" at anything (e.g. $HOME), so a symlinked entry is ignored entirely.
+        for p in AGENT_SCRATCH:
+            lex = os.path.normpath(self.home + p[1:])
+            if not os.path.islink(lex):
+                self.temp.append(os.path.realpath(lex))
         self.allowed_domains = [d.lower().lstrip(".") for d in settings.get("allowed_domains", [])]
         self.max_delete = int(settings.get("max_delete_files", 10))
         self.protected = list(settings.get("protected_branches", ["main", "master"]))
@@ -123,6 +128,8 @@ def _classify(text: str, cwd: str | None, ctx: Context) -> PathRef:
             cls = "root"
         else:
             cls = "inside"
+    elif resolved in ctx.temp:
+        cls = "temp-root"  # readable like a temp dir, but the root itself is never written, moved or deleted
     elif any(_within(resolved, tdir) for tdir in ctx.temp):
         cls = "temp"
     else:
@@ -241,6 +248,14 @@ def _data_positions(cmd: str, args: list[str]) -> set[int]:
     return data
 
 
+def _into_dir(ref: PathRef, text: str) -> PathRef:
+    """A copy/move destination that is an existing directory (or ends in "/") means "a new file
+    inside it", so writing into a temp dir's root is fine; replacing the root itself is not."""
+    if ref.cls == "temp-root" and (text.endswith("/") or (ref.resolved and os.path.isdir(ref.resolved))):
+        return PathRef(ref.text, ref.resolved, "temp", ref.cwd)
+    return ref
+
+
 def analyze_segment(seg: Segment, ctx: Context) -> Unit:
     u = Unit("Bash", "segment", seg.text)
     u.segment = seg
@@ -285,15 +300,24 @@ def analyze_segment(seg: Segment, ctx: Context) -> Unit:
             u.deletes += [c(a, d) for a, d in ops if (a, d) not in tdir]
         elif len(ops) >= 2:
             u.deletes += [c(a, d) for a, d in ops[:-1]]
-            u.writes.append(c(*ops[-1]))
+            u.writes.append(_into_dir(c(*ops[-1]), ops[-1][0]))
     elif cmd in ("cp", "install", "ln", "rsync", "scp", "ditto"):
+        if cmd == "ln" and len(ops) >= 2 and any(a == "--symbolic" or re.fullmatch(r"-[a-zA-Z]*s[a-zA-Z]*", a) for a in args):
+            # The kernel resolves a relative symlink target against the link's own directory, not
+            # the shell's cwd: judge the targets where they will really point.
+            link = c(*ops[-1])
+            if link.resolved:
+                ldir = link.resolved if os.path.isdir(link.resolved) else os.path.dirname(link.resolved)
+                targets = {a for a, _ in ops[:-1] if not os.path.isabs(a) and not a.startswith("~")}
+                u.reads = [r for r in u.reads if r.text not in targets]
+                u.reads += [classify(a, d, ldir, ctx) for a, d in ops[:-1] if a in targets]
         tdir = _opt_values(args, dyn, ["-t", "--target-directory"])
         if tdir:
-            u.writes += [c(a, d) for a, d in tdir]
+            u.writes += [_into_dir(c(a, d), a) for a, d in tdir]
         elif len(ops) >= 2:
             a, d = ops[-1]
             if not _SCPLIKE.match(a):
-                u.writes.append(c(a, d))
+                u.writes.append(_into_dir(c(a, d), a))
     elif cmd in ("tee", "touch", "mkdir", "truncate", "mkfifo", "mknod"):
         u.writes += [c(a, d) for a, d in ops if not (cmd == "truncate" and re.fullmatch(r"[+\-<>/%]?\d+[KMGTPkmgtp]?", a))]
     elif cmd in ("chmod", "chown", "chgrp"):
@@ -387,6 +411,9 @@ def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = No
         u.writes += [c(p) for p in paths if isinstance(p, str)]
         if isinstance(ti.get("delete_paths"), list):
             u.deletes += [c(p) for p in ti["delete_paths"] if isinstance(p, str)]
+        if tool == "ApplyPatch" and (ti.get("unparsed") or not (u.writes or u.deletes)):
+            # a patch whose targets we could not read must never pass an "inside the project" check
+            u.writes.append(PathRef("<unparsed patch>", None, "unknown", ctx.cwd))
     elif tool in ("Glob", "Grep", "LS"):
         base = ti.get("path") if isinstance(ti.get("path"), str) else ctx.cwd
         u.reads.append(c(base))
@@ -624,8 +651,8 @@ CHECKS = {
     "remote_pipe_to_shell": _check_remote_pipe,
     "pipe_to_shell": _check_pipe_to_shell,
     "unparseable": lambda u, ctx: u.parsed is not None and u.parsed.unparseable is not None,
-    "delete_outside_project": lambda u, ctx: any(d.cls in ("outside", "root") for d in u.deletes),
-    "write_outside_project": lambda u, ctx: any(w.cls == "outside" for w in u.writes),
+    "delete_outside_project": lambda u, ctx: any(d.cls in ("outside", "root", "temp-root") for d in u.deletes),
+    "write_outside_project": lambda u, ctx: any(w.cls in ("outside", "temp-root") for w in u.writes),
     "unknown_write_target": lambda u, ctx: any(p.cls == "unknown" for p in u.writes + u.deletes),
     "too_many_deletes": _too_many_deletes,
     "git_force_push_protected": _git_push_protected,
@@ -766,8 +793,9 @@ class Rule:
             if not hit:
                 return False
         if self.within_project is not None:
-            refs = u.all_paths()
-            inside = (all(r.cls in ("inside", "root", "temp", "special") for r in refs)
+            ok = ("inside", "root", "temp", "special")
+            inside = (all(r.cls in ok + ("temp-root",) for r in u.reads)
+                      and all(r.cls in ok for r in u.writes + u.deletes)
                       and not u.flags & {"dynamic_command", "args_dynamic"})
             if inside != self.within_project:
                 return False

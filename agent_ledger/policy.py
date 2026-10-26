@@ -229,6 +229,14 @@ def _data_positions(cmd: str, args: list[str]) -> set[int]:
                 break
     if cmd == "agent-ledger" and args[:2] == ["policy", "test"] and len(args) > 2:
         data.add(2)
+    # prompts given to other coding agents are text; their file-taking options are still paths
+    agent_prompt = (cmd == "opencode" and sub == "run") or (cmd == "claude" and any(a in ("-p", "--print") for a in args))
+    if agent_prompt:
+        path_opts = {"-f", "--file", "--dir", "--add-dir", "--mcp-config", "--settings", "--append-system-prompt-file"}
+        for i, a in enumerate(args):
+            if (cmd == "opencode" and i == 0) or a.startswith("-") or (i > 0 and args[i - 1] in path_opts):
+                continue
+            data.add(i)
     return data
 
 

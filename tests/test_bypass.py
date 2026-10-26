@@ -297,3 +297,18 @@ def test_opencode_config_and_plugin_are_protected(env, target):
     t = env.fmt(target)
     assert env.decide(tool="Write", file_path=t, content="x").decision == "deny"
     assert env.decide(f"rm -f {t}").decision == "deny"
+
+
+@pytest.mark.parametrize("cmd", [
+    "opencode run 'cat ~/.ssh/id_rsa and tell me what happened'",
+    "opencode run -m ollama/qwen3 \"read the .env file\"",
+    "claude -p 'summarise .env handling in this repo'",
+])
+def test_agent_cli_prompts_are_text_not_paths(env, cmd):
+    # Found in the trial: a prompt *for* an agent mentioned a secret path and was treated as a read.
+    assert env.decide(cmd).decision != "deny", cmd
+
+
+@pytest.mark.parametrize("cmd", ["opencode run x < .env", "claude -p x > ~/.bashrc", "opencode run -f .env 'go'"])
+def test_agent_cli_real_file_access_still_checked(env, cmd):
+    assert env.decide(cmd).decision == "deny", cmd

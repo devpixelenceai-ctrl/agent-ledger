@@ -85,6 +85,15 @@ Some commands have known write and delete targets: `rm`, `mv`, `cp`, `tee`, `tou
 | `inline_code` | segment | Interpreter code is given inline: `python -c`, `node -e`, `perl -e`, a here-doc into `python`, or `awk` with `system()`. |
 | `runs_script` | segment | A shell or interpreter runs a script file. |
 | `git_config_override` | segment | `git -c …`, which can run programs through aliases or `core.sshCommand`. |
+| `commits_secret_content` | segment | `git add …` or `git commit …` would record content that looks like a secret, or a secret-named file. The decision reason names each file and the kind of secret, never the value. See below. |
+
+**About `commits_secret_content`:**
+- **What it scans:**
+  - `git add <paths>`/`-A`/`.`: changed and untracked files;
+  - `git commit`: the staged additions;
+  - `git commit -a` or `git commit <paths>`: the staged additions plus tracked working changes.
+- **How it detects secrets:** known token formats, private keys, URL credentials, and secret-named assignments with real-looking values. Placeholders such as `changeme`, `${VAR}`, `test…` and `example…` are ignored. A line containing `agent-ledger:allow-secret` or `gitleaks:allow` is skipped, which suits deliberate fake secrets in test fixtures.
+- **Safety:** git never compares working files for this scan, so a repo's fsmonitor, external diff, textconv and clean filters cannot run. If the change is too large to scan within 2 s, or more than 2,000 files or 16 MB, the check matches anyway, so the starter rule asks.
 
 Command-level checks can only be combined with `tools` and `command`.
 

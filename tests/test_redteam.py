@@ -212,3 +212,66 @@ def test_markdown_report_neutralises_markup():
 
     out = _md('<img src=x onerror=alert(1)> [click](javascript:alert(1)) | `x`')
     assert "<img" not in out and "](javascript:" not in out and "\\|" in out
+
+
+# ---- security review: ~/.claude/plans scratch dir must not become a door to $HOME
+
+def _plans(env):
+    p = env.home / ".claude" / "plans"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def test_plan_files_still_writable(env):
+    _plans(env)
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.claude/plans/p.md"), content="x").decision == "allow"
+
+
+@pytest.mark.parametrize("cmd", ["mv ~/.claude/plans /tmp/oldplans", "rm -rf ~/.claude/plans", "rmdir ~/.claude/plans",
+                                 "mv ~/.claude/plans ~/.claude/plans.bak"])
+def test_scratch_root_itself_cannot_be_moved_or_removed(env, cmd):
+    _plans(env)
+    assert env.decide(cmd).decision == "deny", cmd
+
+
+def test_cannot_plant_symlink_at_scratch_root(env):
+    (env.project / "sub").mkdir()
+    (env.home / ".claude").mkdir(parents=True, exist_ok=True)
+    assert env.decide("cd sub && ln -s .. ~/.claude/plans").decision != "allow"
+    assert env.decide("ln -s ~ ~/.claude/plans").decision != "allow"
+
+
+def test_symlinked_scratch_dir_grants_nothing(env):
+    # the state after the reported attack: ~/.claude/plans -> $HOME
+    (env.home / ".claude").mkdir(parents=True, exist_ok=True)
+    (env.home / ".claude" / "plans").symlink_to(env.home)
+    from agent_ledger.policy import Context
+    from policy_helpers import POLICY
+
+    # rebuild the context now that the symlink exists (each hook call builds a fresh one)
+    env.ctx = Context(str(env.project), cwd=str(env.project), env={"HOME": str(env.home)},
+                      settings={**POLICY.settings, "temp_dirs": [str(env.scratch)]})
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.zshrc"), content="x").decision == "deny"
+    assert env.decide("echo evil >> ~/.zshrc").decision == "deny"
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.claude/plans/x.md"), content="x").decision == "deny"
+
+
+def test_symlink_target_is_resolved_against_the_link_directory(env):
+    from agent_ledger.policy import analyze_segment
+    from agent_ledger.shellparse import parse
+
+    (env.project / "sub").mkdir()
+    seg = parse("ln -s ../x sub/link", cwd=str(env.project), env={"HOME": str(env.home)}).segments[0]
+    u = analyze_segment(seg, env.ctx)
+    resolved = {r.resolved for r in u.reads if r.resolved}
+    assert str(env.project / "x") in resolved            # what the link will really point at
+    assert str(env.project.parent / "x") not in resolved  # not resolved against the cwd
+
+
+def test_copying_into_a_temp_root_is_fine_but_replacing_it_is_not(env):
+    assert env.decide(env.fmt("cp README.md {scratch}/")).decision == "allow"
+    assert env.decide(env.fmt("cp README.md {scratch}")).decision == "allow"   # existing dir: copy lands inside
+    plans = _plans(env)
+    assert env.decide(env.fmt("mv README.md {home}/.claude/plans/")).decision == "allow"
+    plans.rmdir()  # once the scratch dir is gone, creating/replacing it from elsewhere is not allowed
+    assert env.decide("ln -s .. ~/.claude/plans").decision != "allow"

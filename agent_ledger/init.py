@@ -115,3 +115,40 @@ def install_hooks(settings_path, command: str, fail_closed: bool = False) -> boo
         _write_new(path.with_name(path.name + ".bak"), path.read_text("utf-8"))
     _write_new(path, json.dumps(merged, indent=2) + "\n")
     return True
+
+
+# ---------------------------------------------------------------- OpenCode
+
+OPENCODE_TEMPLATE = Path(__file__).with_name("integrations") / "opencode" / "agent-ledger.js"
+OPENCODE_MARKER = "agent-ledger-plugin:v1"
+
+
+def render_opencode_plugin(hook_argv: list[str], fail_closed: bool = False) -> str:
+    """The plugin source with the hook command baked in as an argv array (no shell, no PATH lookup)."""
+    src = OPENCODE_TEMPLATE.read_text("utf-8")
+    return src.replace("__HOOK_ARGV__", json.dumps(list(hook_argv))).replace(
+        "__FAIL_CLOSED__", "true" if fail_closed else "false"
+    )
+
+
+def install_opencode_plugin(project: Path, hook_argv: list[str], fail_closed: bool = False) -> bool:
+    """Install the plugin as <project>/.opencode/plugins/agent-ledger.js. Returns True if it changed.
+
+    Never follows a symlink there and never overwrites a file that agent-ledger did not write.
+    """
+    path = Path(project) / ".opencode" / "plugins" / "agent-ledger.js"
+    text = render_opencode_plugin(hook_argv, fail_closed)
+    if path.is_symlink():
+        raise InitError(f"{path} is a symlink; refusing to modify it")
+    if path.exists():
+        current = path.read_text("utf-8", "replace")
+        if OPENCODE_MARKER not in current:
+            raise InitError(f"{path} exists and was not written by agent-ledger; move it aside first")
+        if current == text:
+            return False
+        _write_new(path, text)
+        return True
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not write_exclusive(path, text):
+        raise InitError(f"{path} appeared while installing; nothing was changed")
+    return True

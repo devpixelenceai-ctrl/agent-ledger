@@ -37,7 +37,8 @@ reason = "agent-ledger's log and configuration are off-limits to the agent"
 [[rule]]
 id = "self.policy-and-hooks"
 description = "The agent may not edit the policy file or the Claude Code settings that install the hooks"
-paths = ["{project}/.agent-ledger.toml", "**/.claude/settings.json", "**/.claude/settings.local.json"]
+paths = ["{project}/.agent-ledger.toml", "**/.claude/settings.json", "**/.claude/settings.local.json",
+         "**/opencode.json", "**/opencode.jsonc", "**/.opencode/**", "~/.config/opencode/**"]
 access = "write"
 decision = "deny"
 severity = "critical"
@@ -171,6 +172,15 @@ tools = ["Bash"]
 check = "git_config_override"
 decision = "ask"
 severity = "medium"
+
+[[rule]]
+id = "git.secret-in-commit"
+description = "git add / git commit about to record secrets (scans the actual content, not just file names)"
+tools = ["Bash"]
+check = "commits_secret_content"
+decision = "ask"
+severity = "high"
+reason = "the change being added or committed appears to contain secrets"
 
 [[rule]]
 id = "git.push"
@@ -307,7 +317,7 @@ severity = "info"
 [[rule]]
 id = "files.edit-in-project"
 description = "Editing files inside the project (and temp dirs)"
-tools = ["Edit", "Write", "MultiEdit", "NotebookEdit"]
+tools = ["Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch"]
 within_project = true
 decision = "allow"
 severity = "info"
@@ -344,8 +354,10 @@ tools = ["Bash"]
 command = [
   '^(pytest|py\.test|tox|nox|ruff|mypy|pyright|black --check|flake8|pylint|isort --check)\b',
   '^python[0-9.]* -m (pytest|unittest|mypy|ruff|pyflakes|compileall)\b',
+  '^python[0-9.]* (\S*/)?runtests\.py\b', '^python[0-9.]* manage\.py test\b',
   '^(npm|pnpm|yarn|bun) (run )?(test|lint|typecheck|type-check|check)\b', '^(npx )?(jest|vitest|eslint|tsc|prettier --check|playwright test)\b',
-  '^go (test|vet|build)\b', '^cargo (test|check|clippy|build|fmt --check)\b', '^make (test|check|lint)\b',
+  '^node --test\b',
+  '^go (test|vet|build|fmt)\b', '^gofmt -[ld]\b', '^cargo (test|check|clippy|build|fmt --check)\b', '^make (test|check|lint)\b',
   '^(mvn|gradle|\./gradlew) (test|check)\b', '^(bundle exec )?rspec\b', '^(phpunit|vendor/bin/phpunit)\b',
   '^dotnet test\b', '^swift test\b', '^mix test\b',
 ]

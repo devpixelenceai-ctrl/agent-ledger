@@ -87,8 +87,19 @@ def _policy_ref(cfg: Config, ev: Event) -> str:
     return policy_ref(ev.project_dir, cfg.home)
 
 
-def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseException | None) -> None:
-    payload = adapter.stored_payload(ev.raw, cfg.max_field_chars)
+def _adapter(agent: str):
+    if agent == "claude-code":
+        return adapter
+    if agent == "opencode":
+        from agent_ledger.adapters import opencode
+
+        return opencode
+    raise ValueError(f"unknown agent {agent!r} (supported: claude-code, opencode)")
+
+
+def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseException | None, ad=None) -> None:
+    ad = ad or adapter
+    payload = ad.stored_payload(ev.raw, cfg.max_field_chars)
     row = {
         "ts": _now(),
         "agent": ev.agent,
@@ -96,7 +107,7 @@ def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseExcept
         "event_type": ev.event_type,
         "tool_name": ev.tool_name,
         "tool_use_id": ev.tool_use_id,
-        "summary": adapter.summarize(ev.raw),
+        "summary": ad.summarize(ev.raw),
         "payload": json.dumps(payload, sort_keys=True, ensure_ascii=False),
         "decision": decision.decision if decision else None,
         "rule_id": decision.rule_id if decision else None,
@@ -108,12 +119,12 @@ def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseExcept
         row.update(decision="error", reason=redact_str(f"{type(error).__name__}: {error}")[:500])
     conn = store.connect(cfg.db_path, busy_timeout_ms=HOOK_LOCK_WAIT_MS)
     try:
-        store.append(conn, row, key=cfg.hmac_key, session_meta=adapter.session_meta(ev.raw))
+        store.append(conn, row, key=cfg.hmac_key, session_meta=ad.session_meta(ev.raw))
     finally:
         conn.close()
 
 
-def main(stdin=None, stdout=None, stderr=None, env=None) -> int:
+def main(stdin=None, stdout=None, stderr=None, env=None, agent: str = "claude-code") -> int:
     stdin, stdout, stderr = stdin or sys.stdin, stdout or sys.stdout, stderr or sys.stderr
     env = os.environ if env is None else env
     cfg: Config | None = None
@@ -128,8 +139,10 @@ def main(stdin=None, stdout=None, stderr=None, env=None) -> int:
         data = json.loads(stdin.read())
         if not isinstance(data, dict):
             raise ValueError("hook input is not a JSON object")
-        event_type = data.get("hook_event_name")
-        ev = adapter.to_event(data, env)
+        event_type = data.get("hook_event_name") or ("PreToolUse" if data.get("phase") == "tool.before" else None)
+        ad = _adapter(agent)
+        ev = ad.to_event(data, env)
+        event_type = ev.event_type
     except BaseException:
         log_error(env, "hook input error:\n" + _tb())
         return _fail(cfg, env, event_type, stderr)
@@ -143,7 +156,7 @@ def main(stdin=None, stdout=None, stderr=None, env=None) -> int:
 
     recorded = True
     try:
-        _record(cfg, ev, decision, error)
+        _record(cfg, ev, decision, error, ad)
     except BaseException:
         recorded = False
         log_error(env, "record error:\n" + _tb())
@@ -163,7 +176,7 @@ def main(stdin=None, stdout=None, stderr=None, env=None) -> int:
                 message = "agent-ledger: " + "; ".join(warnings)
         except Exception:
             log_error(env, "session warning error:\n" + _tb())
-    out, code = adapter.render(decision, ev.event_type, message)
+    out, code = ad.render(decision, ev.event_type, message)
     if out:
         stdout.write(out)
     return code

@@ -50,6 +50,24 @@ To try the dashboard without running an agent, use `agent-ledger serve --demo`.
 ![Dashboard: session barcode and timeline](docs/img/dashboard.gif)
 <!-- GIF placeholder -->
 
+## Supported agents
+
+| Agent | How agent-ledger plugs in | Set up with |
+|---|---|---|
+| **Claude Code** | Hooks in `.claude/settings.json` | `agent-ledger init` |
+| **OpenCode** (v1.x) | A plugin in `.opencode/plugins/` | `agent-ledger init --agent opencode` |
+
+Both agents share the same policy, ledger, reports and dashboard.
+
+OpenCode's v1 plugin API cannot show an approval prompt, so under OpenCode an "ask" blocks the call. The agent is told the call needs human approval.
+
+agent-ledger has been tested on real work with OpenCode and a free local 8B model (qwen3:8b via Ollama) on django, fastify and hugo:
+- every tool call was recorded;
+- no secrets leaked;
+- no hook crashed.
+
+See [docs/real-world-trial.md](docs/real-world-trial.md).
+
 ## What you get
 
 | | |
@@ -75,7 +93,8 @@ The starter policy, briefly:
   - `terraform apply`, `kubectl` and deploys;
   - network access to domains not on the allowlist;
   - bulk deletes;
-  - third-party MCP tools.
+  - third-party MCP tools;
+  - `git add` or `git commit` of content that looks like a secret. The content itself is scanned, not just the file names.
 - **Allowed:** reads, searches, tests, and edits inside the project.
 
 ## The policy format

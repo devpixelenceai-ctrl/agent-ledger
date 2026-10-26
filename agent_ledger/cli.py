@@ -10,7 +10,13 @@ def main(argv: list[str] | None = None) -> int:
     if argv[:1] == ["hook"]:
         from agent_ledger.hook import main as hook_main
 
-        return hook_main()
+        agent = "claude-code"
+        rest = argv[1:]
+        if rest[:1] == ["--agent"] and len(rest) > 1:
+            agent = rest[1]
+        elif rest[:1] and rest[0].startswith("--agent="):
+            agent = rest[0].split("=", 1)[1]
+        return hook_main(agent=agent)
     return _main_slow(argv)
 
 
@@ -22,7 +28,9 @@ def _build_parser():
 
     sub.add_parser("hook", help="hook entry point (run by Claude Code; reads JSON on stdin)")
 
-    i = sub.add_parser("init", help="install hooks into .claude/settings.json and copy the starter policy")
+    i = sub.add_parser("init", help="install agent-ledger into a project (Claude Code hooks or an OpenCode plugin)")
+    i.add_argument("--agent", choices=["claude-code", "opencode"], default="claude-code",
+                   help="which agent to govern (default: claude-code)")
     i.add_argument("--project", help="project directory (default: current directory)")
     i.add_argument("--user", action="store_true", help="install into ~/.claude/settings.json instead")
     i.add_argument("--command", help='hook command to write (default: "agent-ledger hook")')
@@ -116,15 +124,47 @@ def _absolute_hook_command() -> str:
     return f"{shlex.quote(sys.executable)} -m agent_ledger hook"
 
 
+def _hook_argv(agent: str) -> list[str]:
+    """The exact installation running `init`, as an argv list (used by the OpenCode plugin)."""
+    import os
+
+    script = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
+    if os.path.basename(script) == "agent-ledger" and os.access(script, os.X_OK):
+        return [script, "hook", "--agent", agent]
+    return [sys.executable, "-m", "agent_ledger", "hook", "--agent", agent]
+
+
 def _cmd_init(args) -> int:
     import os
-    import shutil
     from pathlib import Path
 
     from agent_ledger.config import ledger_home
-    from agent_ledger.init import InitError, install_hooks
+    from agent_ledger.init import InitError
 
     project = Path(args.project or os.getcwd()).resolve()
+    if args.agent == "opencode":
+        from agent_ledger.init import install_opencode_plugin
+
+        argv = _hook_argv("opencode")
+        try:
+            changed = install_opencode_plugin(project, argv, fail_closed=args.fail_closed)
+        except InitError as e:
+            print(f"agent-ledger init: {e}", file=sys.stderr)
+            return 1
+        plugin = project / ".opencode" / "plugins" / "agent-ledger.js"
+        print(f"{'Installed' if changed else 'Already up to date:'} {plugin}")
+        print(f"  hook: {' '.join(argv)}")
+    elif _install_claude_hooks(args, project) != 0:
+        return 1
+    return _init_policy_and_config(args, project)
+
+
+def _install_claude_hooks(args, project) -> int:
+    import shutil
+    from pathlib import Path
+
+    from agent_ledger.init import InitError, install_hooks
+
     settings = Path.home() / ".claude" / "settings.json" if args.user else project / ".claude" / "settings.json"
     if args.command:
         command = args.command
@@ -144,6 +184,14 @@ def _cmd_init(args) -> int:
         print(f"agent-ledger init: {e}", file=sys.stderr)
         return 1
     print(f"{'Updated' if changed else 'Already up to date:'} {settings}")
+    return 0
+
+
+def _init_policy_and_config(args, project) -> int:
+    import os
+
+    from agent_ledger.config import ledger_home
+
     if not args.no_policy:
         from agent_ledger.policyfile import REPO_POLICY, STARTER, trust_policy
 
@@ -172,7 +220,8 @@ def _cmd_init(args) -> int:
             home.mkdir(parents=True, exist_ok=True, mode=0o700)
             cfg.write_text('[ledger]\nfail_mode = "closed"\n', "utf-8")
             print(f"Wrote {cfg} (fail_mode = closed)")
-    print("Next: start (or continue) a Claude Code session; events land in the ledger. Check with: agent-ledger verify")
+    agent = "an OpenCode session (opencode / opencode run)" if args.agent == "opencode" else "a Claude Code session"
+    print(f"Next: start (or continue) {agent}; events land in the ledger. Check with: agent-ledger verify")
     return 0
 
 

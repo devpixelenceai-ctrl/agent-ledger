@@ -56,13 +56,17 @@ These limits are inherent to governing at the tool-call layer. Plan around them.
    The starter policy allows tests, so a malicious agent could hide actions there.
 2. **Actions outside hooked tools.** Background processes started earlier, cron jobs, editors and IDE plugins, and anything not routed through Claude Code's tool calls.
 3. **Turing-complete escape hatches.** Interpreter code (`python -c`, `node -e`, `awk system()`) is detected and made to *ask*. Once approved, its behaviour is not checked. Variables computed at runtime make a command *ask*, but a person can still approve something harmful.
-4. **Reads that do not name the file.** `grep -r KEY .` or `cat *` in a directory containing `.env` read secrets without naming them. bash's `*` skips dotfiles, but `-r` does not. The output is still redacted before logging, but the agent sees it.
-5. **Encoded or fragmented secrets.** The redactor misses secrets that are deliberately disguised: ROT13, short base64 pieces, character arithmetic. It also misses secrets with no recognisable shape that sit in an unlabelled context.
-6. **A writer of the database.** Anyone (or anything) running as the user can recompute the whole chain after editing it. The chain makes tampering *evident*, not impossible. Use an HMAC key stored where the agent cannot read it, and anchor head hashes (put them in reports, commits or tickets).
-7. **Users and other software turning it off.** Editing `~/.claude/settings.json`, setting `disableAllHooks`, or using managed settings such as `allowManagedHooksOnly`. In an interactive session, Claude Code does not run hooks until the folder is trusted. Headless (`-p`) sessions treat every folder as trusted.
-8. **The project that contains agent-ledger itself.** When agent-ledger governs its own repository (dogfooding), the agent can edit the code that governs it. A normal `pipx` install lives outside the project, where the starter policy denies writes.
-9. **Fail-open gaps.** With the default `fail_mode = "open"`, an internal error, a hook timeout, or a missing `agent-ledger` binary lets the call proceed under Claude Code's normal permissions. Use `fail_mode = "closed"` and `init --fail-closed` (`onFailure: "block"`) if that is unacceptable.
-10. **Policy authoring mistakes.** First match wins. A broad `allow` placed above a `deny` silences the deny. `agent-ledger policy lint` warns about common cases, and `policy test` shows exactly which rule decided.
+4. **Secrets committed by other routes.** `git add` and `git commit` scan the content being recorded, but some routes are not scanned:
+   - `git stash`, `git apply --index`, `git update-index`, and other plumbing;
+   - scripts that commit;
+   - a secret format the detector does not recognise.
+5. **Reads that do not name the file.** `grep -r KEY .` or `cat *` in a directory containing `.env` read secrets without naming them. bash's `*` skips dotfiles, but `-r` does not. The output is still redacted before logging, but the agent sees it.
+6. **Encoded or fragmented secrets.** The redactor misses secrets that are deliberately disguised: ROT13, short base64 pieces, character arithmetic. It also misses secrets with no recognisable shape that sit in an unlabelled context.
+7. **A writer of the database.** Anyone (or anything) running as the user can recompute the whole chain after editing it. The chain makes tampering *evident*, not impossible. Use an HMAC key stored where the agent cannot read it, and anchor head hashes (put them in reports, commits or tickets).
+8. **Users and other software turning it off.** Editing `~/.claude/settings.json`, setting `disableAllHooks`, or using managed settings such as `allowManagedHooksOnly`. In an interactive session, Claude Code does not run hooks until the folder is trusted. Headless (`-p`) sessions treat every folder as trusted.
+9. **The project that contains agent-ledger itself.** When agent-ledger governs its own repository (dogfooding), the agent can edit the code that governs it. A normal `pipx` install lives outside the project, where the starter policy denies writes.
+10. **Fail-open gaps.** With the default `fail_mode = "open"`, an internal error, a hook timeout, or a missing `agent-ledger` binary lets the call proceed under Claude Code's normal permissions. Use `fail_mode = "closed"` and `init --fail-closed` (`onFailure: "block"`) if that is unacceptable.
+11. **Policy authoring mistakes.** First match wins. A broad `allow` placed above a `deny` silences the deny. `agent-ledger policy lint` warns about common cases, and `policy test` shows exactly which rule decided.
 
 ## Residual-risk guidance
 

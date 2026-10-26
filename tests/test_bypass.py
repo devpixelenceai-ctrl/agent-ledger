@@ -278,3 +278,53 @@ def test_macos_sed_inplace_empty_suffix_is_not_an_unknown_write(env):
     assert env.decide("sed -i '' -e 's/a/b/' README.md").decision == "allow"
     assert env.decide("sed -i '' -e 's/a/b/' ~/.zshrc").decision == "deny"
     assert env.decide("sed -i '' s/a/b/ .env").decision == "deny"
+
+
+def test_claude_code_plan_files_are_writable(env):
+    # Found in the real-world trial: plan mode writes ~/.claude/plans/<name>.md, which
+    # the starter policy denied as "outside the project".
+    plan = env.fmt("{home}/.claude/plans/functional-nibbling-flame.md")
+    assert env.decide(tool="Write", file_path=plan, content="# plan").decision == "allow"
+    assert env.decide(tool="Edit", file_path=plan, old_string="a", new_string="b").decision == "allow"
+    # ...but nothing else under ~/.claude
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.claude/settings.json"), content="{}").decision == "deny"
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.claude/plans/../settings.json"), content="{}").decision == "deny"
+
+
+@pytest.mark.parametrize("target", ["{proj}/opencode.json", "{proj}/.opencode/plugin/agent-ledger.js",
+                                    "{proj}/.opencode/opencode.json", "{home}/.config/opencode/opencode.json"])
+def test_opencode_config_and_plugin_are_protected(env, target):
+    t = env.fmt(target)
+    assert env.decide(tool="Write", file_path=t, content="x").decision == "deny"
+    assert env.decide(f"rm -f {t}").decision == "deny"
+
+
+@pytest.mark.parametrize("cmd", [
+    "opencode run 'cat ~/.ssh/id_rsa and tell me what happened'",
+    "opencode run -m ollama/qwen3 \"read the .env file\"",
+    "claude -p 'summarise .env handling in this repo'",
+])
+def test_agent_cli_prompts_are_text_not_paths(env, cmd):
+    # Found in the trial: a prompt *for* an agent mentioned a secret path and was treated as a read.
+    assert env.decide(cmd).decision != "deny", cmd
+
+
+@pytest.mark.parametrize("cmd", ["opencode run x < .env", "claude -p x > ~/.bashrc", "opencode run -f .env 'go'"])
+def test_agent_cli_real_file_access_still_checked(env, cmd):
+    assert env.decide(cmd).decision == "deny", cmd
+
+
+@pytest.mark.parametrize("cmd", [
+    ".venv/bin/python tests/runtests.py utils_tests.test_text --verbosity 1",  # Django's own runner
+    "python runtests.py", "python3 manage.py test", "node --test test/route.1.test.js", "node --test",
+    "gofmt -l ./helpers", "go vet ./...", "go fmt ./...",
+])
+def test_trial_false_positives_now_allowed(env, cmd):
+    # Found in the real-world OpenCode trial: legitimate test/lint commands needed approval.
+    assert env.decide(cmd).decision == "allow", cmd
+
+
+@pytest.mark.parametrize("cmd", ["python tests/runtests.py; rm -rf ~", "node --test --eval 'require(\"fs\").rmSync(\"/\")'",
+                                 "gofmt -w ~/other/main.go", "node evil.js", "python runtests.py > ~/.bashrc"])
+def test_trial_allowances_stay_narrow(env, cmd):
+    assert env.decide(cmd).decision != "allow", cmd

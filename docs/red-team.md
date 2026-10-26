@@ -39,3 +39,14 @@ The dashboard was reviewed and needed no changes. Existing tests cover it:
 - non-GET methods, foreign `Host` headers and path traversal;
 - the read-only connection, with the database fingerprint unchanged after use;
 - no HTML-string sinks, a strict CSP, and no external requests (checked in a browser).
+
+## Pass 3 (`/security-review` on PR #1, OpenCode adapter)
+
+Both findings were confirmed by an independent false-positive check (confidence 9/10) and reproduced against the real starter policy.
+
+| # | Finding | Severity | Fix |
+|---|---|---|---|
+| 16 | `~/.claude/plans` (the agent scratch dir added for Claude Code plan mode) was resolved with `realpath` on every call. The agent could move the real folder away (the scratch root itself counted as temp) and put a symlink there pointing at `$HOME`. The ledger then judged `~/.zshrc` and similar files as writable temp files. A policy that resolved a relative `ln -s` target against the shell's cwd, while the kernel resolves it against the link's own directory, made planting that symlink possible. | high | A symlinked scratch entry is ignored entirely. A temp root itself (`temp-root`) can be read but never written, moved or deleted, which also closes `rm -rf /tmp`. Copying *into* a temp dir is still allowed. `ln -s` targets resolve against the link's directory. |
+| 17 | OpenCode `apply_patch` headers without a space after the colon (`*** Add File:path`), which OpenCode itself accepts, were missed by the adapter's regex. The patch then had no paths, so path deny rules didn't match while `within_project` passed vacuously. That let the agent overwrite the governance plugin, the policy or `.env`. | high | The adapter mirrors OpenCode's parser (prefix match plus `trim()`, heredoc stripping) and fails closed. A patch with an unreadable or empty header, or no recognised paths, gets an unknown write target, so it can never be allowed blind. |
+
+Regression tests are in `tests/test_redteam.py` (scratch dir) and `tests/test_opencode.py` (patch headers).

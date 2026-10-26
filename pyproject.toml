@@ -28,7 +28,7 @@ agent-ledger = "agent_ledger.cli:main"
 include = ["agent_ledger*"]
 
 [tool.setuptools.package-data]
-agent_ledger = ["policies/*.toml", "static/*.html"]
+agent_ledger = ["policies/*.toml", "static/*.html", "integrations/*/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

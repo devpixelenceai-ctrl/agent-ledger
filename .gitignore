@@ -11,3 +11,4 @@ dist/
 .claude/settings.local.json
 .claude/settings.json.bak
 audit-report.html
+trial/

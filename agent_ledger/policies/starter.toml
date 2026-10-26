@@ -37,7 +37,8 @@ reason = "agent-ledger's log and configuration are off-limits to the agent"
 [[rule]]
 id = "self.policy-and-hooks"
 description = "The agent may not edit the policy file or the Claude Code settings that install the hooks"
-paths = ["{project}/.agent-ledger.toml", "**/.claude/settings.json", "**/.claude/settings.local.json"]
+paths = ["{project}/.agent-ledger.toml", "**/.claude/settings.json", "**/.claude/settings.local.json",
+         "**/opencode.json", "**/opencode.jsonc", "**/.opencode/**", "~/.config/opencode/**"]
 access = "write"
 decision = "deny"
 severity = "critical"

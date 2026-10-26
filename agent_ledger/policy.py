@@ -41,6 +41,8 @@ DELETE_CMDS = {"rm", "rmdir", "unlink", "shred", "srm", "trash", "trash-put"}
 SPECIAL_PATHS = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/stdin", "/dev/tty", "/dev/zero",
                  "/dev/random", "/dev/urandom"}
 DEFAULT_TEMP = ["/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/var/folders", "/private/var/folders"]
+# Scratch locations agent harnesses write to by design; treated like temp dirs.
+AGENT_SCRATCH = ["~/.claude/plans"]  # Claude Code plan mode
 _URL = re.compile(r"\b(?:https?|ftps?|wss?)://[^\s'\"<>`)]+", re.I)
 _SCPLIKE = re.compile(r"^(?:[\w.\-]+@)?([A-Za-z0-9.\-]+\.[A-Za-z]{2,}|localhost):")
 
@@ -62,6 +64,7 @@ class Context:
         self.ledger_home = os.path.realpath(ledger_home or env.get("AGENT_LEDGER_HOME") or os.path.join(self.home, ".agent-ledger"))
         settings = settings or {}
         temps = list(settings.get("temp_dirs", DEFAULT_TEMP)) + list(extra_temp or [])
+        temps += [self.home + p[1:] for p in AGENT_SCRATCH]
         if env.get("TMPDIR"):
             temps.append(env["TMPDIR"])
         self.temp = [os.path.realpath(os.path.expanduser(t)) for t in temps if t]

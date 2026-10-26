@@ -278,3 +278,22 @@ def test_macos_sed_inplace_empty_suffix_is_not_an_unknown_write(env):
     assert env.decide("sed -i '' -e 's/a/b/' README.md").decision == "allow"
     assert env.decide("sed -i '' -e 's/a/b/' ~/.zshrc").decision == "deny"
     assert env.decide("sed -i '' s/a/b/ .env").decision == "deny"
+
+
+def test_claude_code_plan_files_are_writable(env):
+    # Found in the real-world trial: plan mode writes ~/.claude/plans/<name>.md, which
+    # the starter policy denied as "outside the project".
+    plan = env.fmt("{home}/.claude/plans/functional-nibbling-flame.md")
+    assert env.decide(tool="Write", file_path=plan, content="# plan").decision == "allow"
+    assert env.decide(tool="Edit", file_path=plan, old_string="a", new_string="b").decision == "allow"
+    # ...but nothing else under ~/.claude
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.claude/settings.json"), content="{}").decision == "deny"
+    assert env.decide(tool="Write", file_path=env.fmt("{home}/.claude/plans/../settings.json"), content="{}").decision == "deny"
+
+
+@pytest.mark.parametrize("target", ["{proj}/opencode.json", "{proj}/.opencode/plugin/agent-ledger.js",
+                                    "{proj}/.opencode/opencode.json", "{home}/.config/opencode/opencode.json"])
+def test_opencode_config_and_plugin_are_protected(env, target):
+    t = env.fmt(target)
+    assert env.decide(tool="Write", file_path=t, content="x").decision == "deny"
+    assert env.decide(f"rm -f {t}").decision == "deny"

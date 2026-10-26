@@ -9,7 +9,8 @@ description = "Tamper-evident flight recorder and policy gate for AI coding agen
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-keywords = ["ai-agents", "claude-code", "audit", "governance", "hooks", "policy"]
+authors = [{ name = "Pixelence AI" }]
+keywords = ["ai-agents", "claude-code", "opencode", "audit", "governance", "hooks", "policy", "security"]
 dependencies = []
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -33,3 +34,9 @@ agent_ledger = ["policies/*.toml", "static/*.html", "integrations/*/*.js"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["bench: latency benchmark (spawns real hook processes)"]
+
+[project.urls]
+Homepage = "https://github.com/devpixelenceai-ctrl/agent-ledger"
+Issues = "https://github.com/devpixelenceai-ctrl/agent-ledger/issues"
+Changelog = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/CHANGELOG.md"
+Security = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/SECURITY.md"

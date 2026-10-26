@@ -235,6 +235,8 @@ def analyze_segment(seg: Segment, ctx: Context) -> Unit:
     cmd, args, dyn = seg.cmd, seg.argv[1:], seg.words_dynamic[1:]
     c = lambda t, d: classify(t, d, seg.cwd, ctx)  # noqa: E731
     data = _data_positions(cmd, args)
+    # an empty argument (e.g. macOS `sed -i ''`) can never name a file
+    data |= {i for i, (a, d) in enumerate(zip(args, dyn)) if a == "" and not d}
     ops = _operands([a for i, a in enumerate(args) if i not in data], [d for i, d in enumerate(dyn) if i not in data])
 
     # everything else mentioned is a potential read (catches `cat .env`, `F=.env`, `source x`)

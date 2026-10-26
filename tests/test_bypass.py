@@ -272,3 +272,9 @@ def test_ledger_read_commands_allowed(env, cmd):
                                  "agent-ledger verify --db ~/.agent-ledger/ledger.db"])
 def test_ledger_admin_or_outside_writes_not_allowed(env, cmd):
     assert env.decide(cmd).decision != "allow", cmd
+
+
+def test_macos_sed_inplace_empty_suffix_is_not_an_unknown_write(env):
+    assert env.decide("sed -i '' -e 's/a/b/' README.md").decision == "allow"
+    assert env.decide("sed -i '' -e 's/a/b/' ~/.zshrc").decision == "deny"
+    assert env.decide("sed -i '' s/a/b/ .env").decision == "deny"

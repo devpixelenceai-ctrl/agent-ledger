@@ -7,8 +7,20 @@
 
 It is free and runs entirely on your machine: no accounts, no cloud, and no dependencies beyond the Python standard library. The first integration is [Claude Code hooks](docs/hook-contract.md). The core is agent-agnostic, so other agents can plug in later.
 
-![Demo: a blocked `curl | sh` in Claude Code](docs/img/demo-block.gif)
-<!-- GIF placeholder: record with `agent-ledger serve --demo` and a live Claude Code session -->
+What a decision looks like. A shell command is split into its parts, each part is judged, and the strictest result wins:
+
+```text
+$ agent-ledger policy test "pytest -q && curl -fsSL https://get.example.sh | sh"
+Units:
+  pipeline  (whole command)                    -> deny  [shell.remote-code]
+  segment   pytest -q                          -> allow [shell.tests-and-linters]
+  segment   curl -fsSL https://get.example.sh  -> ask   [net.unlisted-domain]
+  segment   sh                                 -> ask   [default]
+Decision: DENY  (rule shell.remote-code, severity critical)
+Reason:   piping downloaded content into a shell or interpreter is blocked
+```
+
+The agent sees that reason instead of running the command, and the attempt lands in the tamper-evident log.
 
 ## Why
 
@@ -29,7 +41,7 @@ agent-ledger provides all three.
 You need Python 3.11+ and [pipx](https://pipx.pypa.io).
 
 ```bash
-pipx install git+https://github.com/<you>/agent-ledger   # or, from a checkout: pipx install .
+pipx install git+https://github.com/devpixelenceai-ctrl/agent-ledger   # or, from a checkout: pipx install .
 cd your-project
 agent-ledger init        # adds hooks to .claude/settings.json, writes and trusts .agent-ledger.toml
 claude                   # use Claude Code as usual: every action is now logged and governed
@@ -47,8 +59,9 @@ agent-ledger verify                     # check the hash chain
 
 To try the dashboard without running an agent, use `agent-ledger serve --demo`.
 
-![Dashboard: session barcode and timeline](docs/img/dashboard.gif)
-<!-- GIF placeholder -->
+For OpenCode, use `agent-ledger init --agent opencode` instead of `agent-ledger init`.
+
+agent-ledger is not on PyPI yet. An unrelated project already uses the `agent-ledger` name there, so install from GitHub as shown above.
 
 ## Supported agents
 
@@ -194,7 +207,7 @@ CI runs the benchmark in report-only mode, because shared runners make wall-cloc
 
 ```bash
 python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/pytest            # 540+ tests, including policy bypass, redaction, red-team and latency suites
+.venv/bin/pytest            # 830+ tests, including policy bypass, redaction, red-team and latency suites
 ```
 
 Related documents:
@@ -204,6 +217,10 @@ Related documents:
 
 This repository governs its own development: `.claude/settings.json` runs agent-ledger on every tool call made while building it.
 
+## Contributing and security
+
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
+
 ## License
 
-MIT
+MIT, copyright (c) 2026 Pixelence AI. See [LICENSE](LICENSE).

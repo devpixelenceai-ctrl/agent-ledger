@@ -345,8 +345,10 @@ tools = ["Bash"]
 command = [
   '^(pytest|py\.test|tox|nox|ruff|mypy|pyright|black --check|flake8|pylint|isort --check)\b',
   '^python[0-9.]* -m (pytest|unittest|mypy|ruff|pyflakes|compileall)\b',
+  '^python[0-9.]* (\S*/)?runtests\.py\b', '^python[0-9.]* manage\.py test\b',
   '^(npm|pnpm|yarn|bun) (run )?(test|lint|typecheck|type-check|check)\b', '^(npx )?(jest|vitest|eslint|tsc|prettier --check|playwright test)\b',
-  '^go (test|vet|build)\b', '^cargo (test|check|clippy|build|fmt --check)\b', '^make (test|check|lint)\b',
+  '^node --test\b',
+  '^go (test|vet|build|fmt)\b', '^gofmt -[ld]\b', '^cargo (test|check|clippy|build|fmt --check)\b', '^make (test|check|lint)\b',
   '^(mvn|gradle|\./gradlew) (test|check)\b', '^(bundle exec )?rspec\b', '^(phpunit|vendor/bin/phpunit)\b',
   '^dotnet test\b', '^swift test\b', '^mix test\b',
 ]

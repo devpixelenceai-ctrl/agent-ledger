@@ -312,3 +312,19 @@ def test_agent_cli_prompts_are_text_not_paths(env, cmd):
 @pytest.mark.parametrize("cmd", ["opencode run x < .env", "claude -p x > ~/.bashrc", "opencode run -f .env 'go'"])
 def test_agent_cli_real_file_access_still_checked(env, cmd):
     assert env.decide(cmd).decision == "deny", cmd
+
+
+@pytest.mark.parametrize("cmd", [
+    ".venv/bin/python tests/runtests.py utils_tests.test_text --verbosity 1",  # Django's own runner
+    "python runtests.py", "python3 manage.py test", "node --test test/route.1.test.js", "node --test",
+    "gofmt -l ./helpers", "go vet ./...", "go fmt ./...",
+])
+def test_trial_false_positives_now_allowed(env, cmd):
+    # Found in the real-world OpenCode trial: legitimate test/lint commands needed approval.
+    assert env.decide(cmd).decision == "allow", cmd
+
+
+@pytest.mark.parametrize("cmd", ["python tests/runtests.py; rm -rf ~", "node --test --eval 'require(\"fs\").rmSync(\"/\")'",
+                                 "gofmt -w ~/other/main.go", "node evil.js", "python runtests.py > ~/.bashrc"])
+def test_trial_allowances_stay_narrow(env, cmd):
+    assert env.decide(cmd).decision != "allow", cmd

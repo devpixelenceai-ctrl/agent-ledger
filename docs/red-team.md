@@ -22,3 +22,20 @@ or `tests/test_redact.py`. Read this together with `docs/threat-model.md`.
 - Full-chain rewrites by someone who can write the database. The mitigations are an HMAC key the agent cannot read, and head anchoring.
 - Secrets in encodings the redactor does not know, such as ROT13 or short base64 pieces.
 - Commands whose behaviour depends on files the agent wrote earlier.
+
+## Pass 2 (after M5)
+
+This pass covered the surfaces added since pass 1 (`init`, reports, dashboard) and re-probed the policy.
+
+| # | Finding | Severity | Fix |
+|---|---|---|---|
+| 11 | `init` wrote `settings.json.tmp` and `.bak` at fixed names. A cloned repo could commit them as symlinks (for example to `~/.bashrc`), and `init` would write through them. A dangling `.agent-ledger.toml` symlink was followed the same way. | medium | Temp files get random names (`mkstemp`, O_EXCL) and are moved into place with `os.replace`. The starter policy is created with O_EXCL and O_NOFOLLOW. A `settings.json` that is itself a symlink is refused. |
+| 12 | Directory-level secret reads, such as `cp -r ~/.ssh .`, `tar … ~/.ssh` and `cp -r ~/.aws .`, were not matched, because `**/.ssh/**` does not match `.ssh` itself. | high | `.ssh`, `.aws` and `.gnupg` are matched as directories too. |
+| 13 | `.env~`, `.envrc` and other `.env` variants were not matched. | medium | The pattern is now `**/.env*`, still excluding `.example`, `.sample` and `.template`. |
+| 14 | `curl -d @id_rsa` and `-F f=@file` hide the file name behind `@`. `@.env` was caught only by luck, through `*.env`. | high | Arguments of the form `@file` and `name=@file` add the file as a read. |
+| 15 | The Markdown report put logged text into tables raw, so `<img onerror=…>` or `[x](javascript:…)` ran in renderers that allow HTML. | low | Cells escape HTML and Markdown link and emphasis syntax. |
+
+The dashboard was reviewed and needed no changes. Existing tests cover it:
+- non-GET methods, foreign `Host` headers and path traversal;
+- the read-only connection, with the database fingerprint unchanged after use;
+- no HTML-string sinks, a strict CSP, and no external requests (checked in a browser).

@@ -6,9 +6,9 @@ in place, the previous file is backed up to settings.json.bak, and invalid JSON 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
-import shutil
 from pathlib import Path
 
 HOOK_EVENTS = (
@@ -70,9 +70,37 @@ def merge_hooks(settings: dict, command: str, fail_closed: bool = False, events=
     return settings, json.dumps(settings, sort_keys=True) != before
 
 
+def _write_new(path: Path, text: str) -> None:
+    """Atomically replace `path` without ever writing through a symlink planted next to it."""
+    import tempfile
+
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")  # O_EXCL, random name
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)  # replaces a symlink at `path` itself; never follows it
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def write_exclusive(path: Path, text: str) -> bool:
+    """Create `path` only if nothing (not even a dangling symlink) is there. Returns False if it exists."""
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)
+    except FileExistsError:
+        return False
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+    return True
+
+
 def install_hooks(settings_path, command: str, fail_closed: bool = False) -> bool:
     """Merge hooks into `settings_path`. Returns True if the file changed."""
     path = Path(settings_path)
+    if path.is_symlink():
+        raise InitError(f"{path} is a symlink; refusing to modify it (it may point outside the project)")
     settings: dict = {}
     if path.exists():
         try:
@@ -84,8 +112,6 @@ def install_hooks(settings_path, command: str, fail_closed: bool = False) -> boo
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
-        shutil.copy2(path, path.with_name(path.name + ".bak"))
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(merged, indent=2) + "\n", "utf-8")
-    os.replace(tmp, path)
+        _write_new(path.with_name(path.name + ".bak"), path.read_text("utf-8"))
+    _write_new(path, json.dumps(merged, indent=2) + "\n")
     return True

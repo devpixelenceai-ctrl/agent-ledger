@@ -241,8 +241,14 @@ def analyze_segment(seg: Segment, ctx: Context) -> Unit:
     for a, d in ops:
         u.reads.append(c(a, d))
     for i, (a, d) in enumerate(zip(args, dyn)):
-        if a.startswith("--") and "=" in a and i not in data:
+        if i in data:
+            continue
+        if a.startswith("--") and "=" in a:
             u.reads.append(c(a.split("=", 1)[1], d))
+        # curl -d @file, -F name=@file, httpie @file: the file is read and sent
+        at = a.rfind("@")
+        if at >= 0 and (at == 0 or a[at - 1] in "=<") and len(a) > at + 1:
+            u.reads.append(c(a[at + 1:].split(";", 1)[0], d))
     for _, v in seg.assignments:
         u.reads.append(c(v, False))
     if cmd and "=" in cmd and not args:  # assignment-only segment

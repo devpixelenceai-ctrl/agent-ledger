@@ -9,6 +9,7 @@ description = "Tamper-evident flight recorder and policy gate for AI coding agen
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+keywords = ["ai-agents", "claude-code", "audit", "governance", "hooks", "policy"]
 dependencies = []
 classifiers = [
     "Programming Language :: Python :: 3",

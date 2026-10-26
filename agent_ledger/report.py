@@ -132,7 +132,13 @@ def render_json(r: dict) -> str:
 
 
 def _md(s) -> str:
-    return "" if s is None else str(s).replace("|", "\\|").replace("\n", " ")
+    """Logged text inside a Markdown table cell: no raw HTML, links, or table breaks."""
+    if s is None:
+        return ""
+    s = str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    for ch in "\\`*_[]()|":
+        s = s.replace(ch, "\\" + ch)
+    return s.replace("\r", " ").replace("\n", " ")
 
 
 def render_md(r: dict) -> str:

@@ -17,7 +17,7 @@ import pytest
 from agent_ledger import store
 from conftest import payload
 
-P95_BUDGET_MS = 50.0
+P95_BUDGET_MS = float(os.environ.get("AGENT_LEDGER_BENCH_BUDGET_MS", "50"))  # CI runners get 2x headroom
 RUNS = 80
 FORBIDDEN_ON_HOT_PATH = {"argparse", "http.server", "dataclasses", "inspect", "typing", "traceback", "difflib", "_hashlib"}
 

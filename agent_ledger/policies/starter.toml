@@ -47,9 +47,9 @@ reason = "editing the agent-ledger policy or Claude Code hook settings is reserv
 id = "secrets.files"
 description = "Reading or editing secrets files (.env, private keys, credential stores)"
 paths = [
-  "**/.env", "**/.env.*", "**/*.env", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx",
-  "**/id_rsa*", "**/id_dsa*", "**/id_ecdsa*", "**/id_ed25519*", "**/.ssh/**",
-  "**/.aws/credentials", "**/.aws/config", "**/.netrc", "**/.pgpass", "**/.git-credentials",
+  "**/.env", "**/.env*", "**/*.env", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx",
+  "**/id_rsa*", "**/id_dsa*", "**/id_ecdsa*", "**/id_ed25519*", "**/.ssh", "**/.ssh/**",
+  "**/.aws", "**/.aws/**", "**/.gnupg", "**/.gnupg/**", "**/.netrc", "**/.pgpass", "**/.git-credentials",
   "**/.docker/config.json", "**/.kube/config", "**/*.tfvars", "**/secrets.yml", "**/secrets.yaml",
 ]
 exclude_paths = ["**/.env.example", "**/.env.sample", "**/.env.template", "**/*.pub"]

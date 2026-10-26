@@ -133,14 +133,16 @@ def _cmd_init(args) -> int:
 
         home = ledger_home(os.environ)
         target = (home / "policy.toml") if args.user else (project / REPO_POLICY)
-        if target.exists():
+        from agent_ledger.init import write_exclusive
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not write_exclusive(target, STARTER.read_text("utf-8")):
             # Never auto-trust a policy we did not write: it may have come with a cloned repo.
-            print(f"Kept existing policy {target}")
+            kind = "symlink" if target.is_symlink() else "policy"
+            print(f"Kept existing {kind} {target}")
             if not args.user:
                 print(f"Review it, then run `agent-ledger policy trust {target}` so the hook will use it.")
         else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(STARTER.read_text("utf-8"), "utf-8")
             print(f"Wrote starter policy {target}")
             if not args.user:
                 digest = trust_policy(target, home)

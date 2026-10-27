@@ -38,7 +38,9 @@ def _build_parser():
     sub.add_parser("git-hook", help="git pre-commit / pre-push entry point (installed by init --agent git)")
 
     i = sub.add_parser("init", help="install agent-ledger into a project (Claude Code hooks or an OpenCode plugin)")
-    i.add_argument("--agent", choices=["claude-code", "opencode", "git"], default="claude-code",
+    from agent_ledger.agent_configs import CONFIGS
+
+    i.add_argument("--agent", choices=["claude-code", "opencode", "git", *sorted(CONFIGS)], default="claude-code",
                    help="which agent to govern (default: claude-code)")
     i.add_argument("--project", help="project directory (default: current directory)")
     i.add_argument("--user", action="store_true", help="install into ~/.claude/settings.json instead")
@@ -163,6 +165,19 @@ def _cmd_init(args) -> int:
         plugin = project / ".opencode" / "plugins" / "agent-ledger.js"
         print(f"{'Installed' if changed else 'Already up to date:'} {plugin}")
         print(f"  hook: {' '.join(argv)}")
+    elif args.agent not in ("claude-code", "git"):
+        from agent_ledger.agent_configs import CONFIGS, install_agent
+
+        spec = CONFIGS[args.agent]
+        try:
+            changed = install_agent(args.agent, project, _hook_argv(args.agent)[:-2], fail_closed=args.fail_closed)
+        except InitError as e:
+            print(f"agent-ledger init: {e}", file=sys.stderr)
+            return 1
+        where = ", ".join(str(p.relative_to(project)) for p in spec.files(project))
+        print(f"{'Installed' if changed else 'Already up to date:'} {args.agent} hooks in {where}")
+        if spec.note:
+            print(f"  {spec.note}")
     elif args.agent == "git":
         from agent_ledger.init import install_git_hooks
 
@@ -241,7 +256,8 @@ def _init_policy_and_config(args, project) -> int:
             home.mkdir(parents=True, exist_ok=True, mode=0o700)
             cfg.write_text('[ledger]\nfail_mode = "closed"\n', "utf-8")
             print(f"Wrote {cfg} (fail_mode = closed)")
-    agent = "an OpenCode session (opencode / opencode run)" if args.agent == "opencode" else "a Claude Code session"
+    agent = {"opencode": "an OpenCode session (opencode / opencode run)", "claude-code": "a Claude Code session",
+             "git": "committing"}.get(args.agent, f"a {args.agent} session")
     print(f"Next: start (or continue) {agent}; events land in the ledger. Check with: agent-ledger verify")
     return 0
 

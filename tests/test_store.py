@@ -3,6 +3,8 @@ import os
 import sqlite3
 import stat
 
+import pytest
+
 from agent_ledger import store
 
 
@@ -35,6 +37,7 @@ def test_append_and_verify(tmp_path):
     assert r.ok and r.checked == 5
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no POSIX file modes; files are protected by the user profile ACLs")
 def test_wal_mode_and_file_permissions(tmp_path):
     db = tmp_path / "sub" / "l.db"
     conn = store.connect(db)

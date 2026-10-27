@@ -78,6 +78,7 @@ def test_fifo_git_head_does_not_hang(tmp_path):
     assert _fast(lambda: gitinfo.git_info(str(tmp_path))) == (None, None)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no POSIX file modes; files are protected by the user profile ACLs")
 def test_wal_and_shm_files_are_private(tmp_path):
     db = tmp_path / "l.db"
     conn = store.connect(db)

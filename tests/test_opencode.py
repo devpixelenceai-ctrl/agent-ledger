@@ -254,7 +254,8 @@ def test_init_fail_closed_bakes_into_plugin(tmp_path):
 NODE = shutil.which("node")
 
 DRIVER = r"""
-const mod = await import(process.argv[2]);
+const { pathToFileURL } = await import("node:url");
+const mod = await import(pathToFileURL(process.argv[2]).href);  // bare C:\ paths are not importable on Windows
 const names = Object.keys(mod);
 if (names.length !== 1 || typeof mod[names[0]] !== "function") throw new Error("plugin must export exactly one function, got " + names);
 const hooks = await mod[names[0]]({ directory: process.argv[3], worktree: process.argv[3] });

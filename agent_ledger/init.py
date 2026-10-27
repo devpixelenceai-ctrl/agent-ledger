@@ -87,6 +87,8 @@ def _write_new(path: Path, text: str) -> None:
 
 def write_exclusive(path: Path, text: str) -> bool:
     """Create `path` only if nothing (not even a dangling symlink) is there. Returns False if it exists."""
+    if os.path.lexists(path):  # Windows has no O_NOFOLLOW, and its O_EXCL follows a dangling symlink
+        return False
     try:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o644)
     except FileExistsError:

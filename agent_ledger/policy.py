@@ -53,26 +53,44 @@ class PolicyError(Exception):
 
 # ---------------------------------------------------------------- context & paths
 
+_WIN = os.sep == "\\"
+
+
+def _fs(p: str) -> str:
+    """One separator everywhere: on Windows (where both are valid) paths are compared in '/' form,
+    so containment checks and path patterns behave exactly as on POSIX."""
+    return p.replace("\\", "/") if _WIN else p
+
+
+def _real(p: str) -> str:
+    return _fs(os.path.realpath(p))
+
+
+def _is_abs(p: str) -> bool:
+    # "/etc/hosts" is rooted on the current drive on Windows, even though Python 3.13+ says not absolute
+    return os.path.isabs(p) or (_WIN and p.startswith("/"))
+
+
 class Context:
     def __init__(self, project_dir: str | None, cwd: str | None = None, env=None, settings=None,
                  ledger_home: str | None = None, extra_temp: list[str] | None = None):
         env = os.environ if env is None else env
         self.env = env
-        self.home = env.get("HOME") or os.path.expanduser("~")
-        self.project = os.path.realpath(project_dir or cwd or os.getcwd())
-        self.cwd = cwd or self.project
-        self.ledger_home = os.path.realpath(ledger_home or env.get("AGENT_LEDGER_HOME") or os.path.join(self.home, ".agent-ledger"))
+        self.home = _fs(env.get("HOME") or os.path.expanduser("~"))
+        self.project = _real(project_dir or cwd or os.getcwd())
+        self.cwd = _fs(cwd) if cwd else self.project
+        self.ledger_home = _real(ledger_home or env.get("AGENT_LEDGER_HOME") or os.path.join(self.home, ".agent-ledger"))
         settings = settings or {}
         temps = list(settings.get("temp_dirs", DEFAULT_TEMP)) + list(extra_temp or [])
         if env.get("TMPDIR"):
             temps.append(env["TMPDIR"])
-        self.temp = [os.path.realpath(os.path.expanduser(t)) for t in temps if t]
+        self.temp = [_real(os.path.expanduser(t)) for t in temps if t]
         # Agent scratch dirs live in $HOME, where the agent itself can write. A symlink there would
         # let it point "scratch" at anything (e.g. $HOME), so a symlinked entry is ignored entirely.
         for p in AGENT_SCRATCH:
             lex = os.path.normpath(self.home + p[1:])
             if not os.path.islink(lex):
-                self.temp.append(os.path.realpath(lex))
+                self.temp.append(_real(lex))
         self.allowed_domains = [d.lower().lstrip(".") for d in settings.get("allowed_domains", [])]
         self.max_delete = int(settings.get("max_delete_files", 10))
         self.protected = list(settings.get("protected_branches", ["main", "master"]))
@@ -109,10 +127,10 @@ def _classify(text: str, cwd: str | None, ctx: Context) -> PathRef:
         t = ctx.home + t[1:]
     elif t.startswith("~"):
         t = os.path.expanduser(t)  # ~otheruser
-    if not os.path.isabs(t):
+    if not _is_abs(t):
         if cwd is None:
             return PathRef(text, None, "unknown", cwd)
-        t = os.path.join(cwd, t)
+        t = _fs(os.path.join(_fs(cwd), t))
     is_glob = any(c in t for c in "*?[")
     whole_dir_glob = False
     base = t
@@ -121,7 +139,7 @@ def _classify(text: str, cwd: str | None, ctx: Context) -> PathRef:
         base = head.rsplit("/", 1)[0] or "/"
         rest = t[len(base):].lstrip("/")
         whole_dir_glob = "/" not in rest and rest in ("*", ".*", "*.*", ".[!.]*", "..?*")
-    resolved = os.path.realpath(base)
+    resolved = _real(base)
     resolved_full = resolved.rstrip("/") + "/" + t[len(base):].lstrip("/") if is_glob else resolved
     if _within(resolved, ctx.project):
         if resolved == ctx.project and (not is_glob or whole_dir_glob):
@@ -308,7 +326,7 @@ def analyze_segment(seg: Segment, ctx: Context) -> Unit:
             link = c(*ops[-1])
             if link.resolved:
                 ldir = link.resolved if os.path.isdir(link.resolved) else os.path.dirname(link.resolved)
-                targets = {a for a, _ in ops[:-1] if not os.path.isabs(a) and not a.startswith("~")}
+                targets = {a for a, _ in ops[:-1] if not _is_abs(a) and not a.startswith("~")}
                 u.reads = [r for r in u.reads if r.text not in targets]
                 u.reads += [classify(a, d, ldir, ctx) for a, d in ops[:-1] if a in targets]
         tdir = _opt_values(args, dyn, ["-t", "--target-directory"])
@@ -482,11 +500,11 @@ class PathPattern:
             p = self.pattern.replace("{project}", ctx.project).replace("{ledger_home}", ctx.ledger_home)
             if p.startswith("~"):
                 p = ctx.home + p[1:]
-            if p.startswith("/"):
+            if p.startswith("/") or (_WIN and re.match(r"[A-Za-z]:/", p)):
                 lit = re.split(r"[*?\[]", p, 1)[0]
                 head = lit.rsplit("/", 1)[0] if "/" in lit else lit
                 if head:
-                    real = os.path.realpath(head)
+                    real = _real(head)
                     p = real + p[len(head):]
             elif self.basename_only and not p.startswith("**/"):
                 p = "**/" + p
@@ -526,9 +544,9 @@ def path_candidates(ref: PathRef) -> list[str]:
             cands += ["/" + s for s in _SENSITIVE_SAMPLES if rx.fullmatch(s)]
         else:
             try:
-                pattern = ref.text if os.path.isabs(ref.text) else os.path.join(ref.cwd, ref.text)
+                pattern = ref.text if _is_abs(ref.text) else os.path.join(ref.cwd, ref.text)
                 it = _glob.iglob(os.path.expanduser(pattern))  # like bash: * skips dotfiles
-                cands += [os.path.realpath(x) for x in itertools.islice(it, GLOB_MAX_RESULTS)]
+                cands += [_real(x) for x in itertools.islice(it, GLOB_MAX_RESULTS)]
             except (OSError, ValueError, TypeError):
                 pass
     return cands

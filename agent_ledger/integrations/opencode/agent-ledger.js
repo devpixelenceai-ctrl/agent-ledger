@@ -120,6 +120,20 @@ export default {
     const base = { agent: "opencode", directory: ctx.location?.directory,
                    worktree: ctx.location?.project?.directory || ctx.location?.directory }
 
+    // permission.assert first applies the agent's own rules, and OpenCode's default agent allows
+    // everything, which would approve our "ask" silently. Force our own requests to "ask" so a person
+    // really decides (headless runs auto-decline; only an explicit --auto approves). A config "deny"
+    // stays final. This hook must never throw.
+    if (ctx.permission?.hook) {
+      await ctx.permission.hook("evaluate", (e) => {
+        try {
+          if (e?.action === "agent-ledger" && e.effect !== "deny") e.effect = "ask"
+        } catch {
+          // never break permission evaluation
+        }
+      })
+    }
+
     await ctx.tool.hook("execute.before", async (e) => {
       await gate({ ...base, phase: "tool.before", tool: e.tool, sessionID: e.sessionID, callID: e.id, args: e.input },
         async (reason) => {

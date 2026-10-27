@@ -423,8 +423,11 @@ DRIVER_V2 = r"""
 const { pathToFileURL } = await import("node:url");
 const plugin = (await import(pathToFileURL(process.argv[2]).href)).default;
 const approve = process.argv[4] === "approve";
-const hooks = { before: [], after: [], prompt: [] };
+const hooks = { before: [], after: [], prompt: [], evaluate: [] };
 const asked = [];
+// Models real V2: the default agent's config ALLOWS everything, then evaluate hooks may change the effect;
+// only an effective "ask" reaches the user (approve/decline). This is what the live V2 run exposed.
+const configEffect = process.argv[5] || "allow";
 let pushEvent;
 const events = { [Symbol.asyncIterator]() { return this; },
   next() { return new Promise((r) => { pushEvent = (e) => r({ value: e, done: false }); }); } };
@@ -432,7 +435,18 @@ const ctx = {
   location: { directory: process.argv[3], project: { id: "p", directory: process.argv[3] } },
   tool: { hook: async (name, cb) => { hooks[name === "execute.before" ? "before" : "after"].push(cb); } },
   session: { hook: async (name, cb) => { if (name === "prompt") hooks.prompt.push(cb); } },
-  permission: { assert: async (req) => { asked.push(req); if (!approve) throw new Error("user declined"); } },
+  permission: {
+    hook: async (name, cb) => { if (name === "evaluate") hooks.evaluate.push(cb); },
+    assert: async (req) => {
+      if (configEffect === "deny") throw new Error("denied by config");
+      const e = { ...req, effect: configEffect };
+      for (const cb of hooks.evaluate) await cb(e);
+      if (e.effect === "allow") return;                       // silently allowed: no prompt
+      if (e.effect === "deny") throw new Error(e.message || "denied");
+      asked.push(req);
+      if (!approve) throw new Error("user declined");
+    },
+  },
   event: { subscribe: () => events },
 };
 await plugin.setup(ctx);
@@ -513,3 +527,29 @@ def test_init_upgrades_an_older_agent_ledger_plugin(tmp_path):
     assert r.returncode == 0, r.stderr
     src = old.read_text()
     assert "agent-ledger-plugin:v2" in src and "async setup(ctx)" in src and "async server(" in src
+
+
+@pytest.mark.skipif(NODE is None, reason="node not installed")
+def test_v2_ask_is_never_silently_approved_by_allow_all_agent_config(tmp_path):
+    # Regression from the live OpenCode 2.1.4 run: the default agent allows everything, which made
+    # permission.assert approve our "ask" without prompting, and `git push` ran unasked.
+    plugin = render_plugin(tmp_path, [sys.executable, "-m", "agent_ledger", "hook", "--agent", "opencode"])
+    driver = tmp_path / "driver_v2.mjs"
+    driver.write_text(DRIVER_V2)
+    (tmp_path / "repo").mkdir()
+    r = subprocess.run([NODE, str(driver), str(plugin), str(tmp_path / "repo"), "decline", "allow"],
+                       capture_output=True, text=True, timeout=90, env={**os.environ, "AGENT_LEDGER_HOME": str(tmp_path / "h")})
+    res = json.loads(r.stdout.strip().splitlines()[-1])
+    assert res["ask"].startswith("blocked:") and res["asked"] == 1
+
+
+@pytest.mark.skipif(NODE is None, reason="node not installed")
+def test_v2_config_deny_stays_final(tmp_path):
+    plugin = render_plugin(tmp_path, [sys.executable, "-m", "agent_ledger", "hook", "--agent", "opencode"])
+    driver = tmp_path / "driver_v2.mjs"
+    driver.write_text(DRIVER_V2)
+    (tmp_path / "repo").mkdir()
+    r = subprocess.run([NODE, str(driver), str(plugin), str(tmp_path / "repo"), "approve", "deny"],
+                       capture_output=True, text=True, timeout=90, env={**os.environ, "AGENT_LEDGER_HOME": str(tmp_path / "h")})
+    res = json.loads(r.stdout.strip().splitlines()[-1])
+    assert res["ask"].startswith("blocked:") and res["asked"] == 0   # denied by config, user never asked

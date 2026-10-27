@@ -50,3 +50,9 @@ Both findings were confirmed by an independent false-positive check (confidence 
 | 17 | OpenCode `apply_patch` headers without a space after the colon (`*** Add File:path`), which OpenCode itself accepts, were missed by the adapter's regex. The patch then had no paths, so path deny rules didn't match while `within_project` passed vacuously. That let the agent overwrite the governance plugin, the policy or `.env`. | high | The adapter mirrors OpenCode's parser (prefix match plus `trim()`, heredoc stripping) and fails closed. A patch with an unreadable or empty header, or no recognised paths, gets an unknown write target, so it can never be allowed blind. |
 
 Regression tests are in `tests/test_redteam.py` (scratch dir) and `tests/test_opencode.py` (patch headers).
+
+## Pass 4 (live OpenCode V2 run)
+
+| # | Finding | Severity | Fix |
+|---|---|---|---|
+| 18 | Under OpenCode 2.x, an "ask" was approved without a person. The plugin asked through `ctx.permission.assert`, but that call first applies the agent's own permission rules, and OpenCode's default agent allows everything. In the live run, `git push origin main` ran with no prompt. | high | The plugin registers a permission `evaluate` hook that turns its own requests into "ask", so a person always decides. A "deny" from OpenCode's own config stays final. Tests model the allow-all default config and the deny case. |

@@ -31,7 +31,7 @@ _URL = re.compile(r"https?://[^\s'\"<>`)\]]+", re.I)
 
 
 class Profile:
-    def __init__(self, name, style, ask, names=None, rename=None, mcp_prefix=None, event_key=None):
+    def __init__(self, name, style, ask, names=None, rename=None, mcp_prefix=None, event_key=None, bridge=None):
         self.name = name
         self.style = style          # reply style, see generic.render_decision
         self.ask = ask              # does the agent show an approval prompt for "ask"?
@@ -39,6 +39,7 @@ class Profile:
         self.rename = rename or {}  # argument name -> canonical argument name
         self.mcp_prefix = mcp_prefix  # how the agent prefixes MCP tool names, e.g. "mcp_"
         self.event_key = event_key
+        self.bridge = bridge        # a wrapper tool that calls another tool by name ({name, args})
 
     # ------------------------------------------------------------ payload -> canonical
 
@@ -64,6 +65,9 @@ class Profile:
             except ValueError:
                 args = {"input": args}
         args = args if isinstance(args, dict) else {"input": args}
+        if self.bridge and name == self.bridge and isinstance(args.get("name"), str):
+            inner = args.get("args", args.get("arguments"))
+            return self.tool(args["name"], inner if isinstance(inner, (dict, str)) else {}, cwd)
         args = {self.rename.get(k, k): v for k, v in args.items()}
         name = str(name or "")
         if self.mcp_prefix and name.startswith(self.mcp_prefix) and not name.startswith("mcp__"):
@@ -310,7 +314,7 @@ PROFILES: dict[str, Profile] = {p.name: p for p in (
                    "agentic_fetch": "FetchUrls", "download": "Download", "web_search": "WebSearch",
                    "sourcegraph": "WebSearch", "todos": "TodoWrite", "question": "AskUserQuestion", "agent": "Task"},
             rename={"include": "glob"}),
-    Profile("qwen", "claude", ask=True, names={"edit": "Edit", "list_directory": "LS", "todo_write": "TodoWrite",
+    Profile("qwen", "claude", ask=True, bridge="tool_call", names={"edit": "Edit", "list_directory": "LS", "todo_write": "TodoWrite",
                                                "agent": "Task", "skill": "Skill", "ask_user_question": "AskUserQuestion"}),
     Profile("continue", "claude", ask=True,
             names={**_CLAUDE_LIKE, "Search": "Grep", "List": "LS", "Fetch": "WebFetch", "Subagent": "Task",

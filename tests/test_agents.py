@@ -305,3 +305,11 @@ def test_auggie_mcp_flag(ledger_home, project):
     data = {"hook_event_name": "PreToolUse", "conversation_id": "s1", "workspace_roots": [str(project)],
             "tool_name": "create_issue_github", "tool_input": {}, "is_mcp_tool": True}
     assert verdict("auggie", *run("auggie", data, ledger_home)) == "deny"  # ask -> block (deny-only agent)
+
+
+def test_qwen_tool_call_bridge_is_checked_as_the_inner_tool(ledger_home, project):
+    data = {**shell("qwen", "", str(project)), "tool_name": "tool_call",
+            "tool_input": {"name": "run_shell_command", "args": {"command": "rm -rf ~"}}}
+    assert verdict("qwen", *run("qwen", data, ledger_home)) == "deny"
+    data["tool_input"] = {"name": "read_file", "args": {"file_path": str(project / "README.md")}}
+    assert verdict("qwen", *run("qwen", data, ledger_home)) == "allow"

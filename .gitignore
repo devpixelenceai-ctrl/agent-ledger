@@ -12,3 +12,6 @@ dist/
 .claude/settings.json.bak
 audit-report.html
 trial/
+.coverage
+.coverage.*
+htmlcov/

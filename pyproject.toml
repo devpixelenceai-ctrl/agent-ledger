@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "hypothesis>=6.100", "coverage>=7.4"]
 
 [project.scripts]
 agent-ledger = "agent_ledger.cli:main"
@@ -40,3 +40,13 @@ Homepage = "https://github.com/devpixelenceai-ctrl/agent-ledger"
 Issues = "https://github.com/devpixelenceai-ctrl/agent-ledger/issues"
 Changelog = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/CHANGELOG.md"
 Security = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/SECURITY.md"
+
+[tool.coverage.run]
+source = ["agent_ledger"]
+branch = true
+parallel = true
+sigterm = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

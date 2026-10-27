@@ -87,6 +87,8 @@ def test_hook_latency_p95(name, warm_home):
                                         f"(bare interpreter alone: {base:.1f}ms)")
 
 
+@pytest.mark.skipif(bool(os.environ.get("COVERAGE_PROCESS_START")),
+                    reason="subprocess coverage imports coverage (and inspect/typing) into every process")
 def test_hot_path_imports_stay_lean():
     code = "import sys, agent_ledger.hook; print('\\n'.join(sys.modules))"
     mods = set(subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.split())

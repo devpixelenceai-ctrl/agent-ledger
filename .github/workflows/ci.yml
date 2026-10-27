@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
@@ -23,14 +23,43 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install
-        run: python -m pip install -e '.[dev]'
-      - name: Tests (functional, adversarial, latency budget)
+        run: python -m pip install -e ".[dev]"
+      - name: Tests (functional, adversarial, fuzzing, replay corpus, latency report)
         # Shared runners: interpreter start-up alone varies widely, so CI only reports the latency
         # benchmark; the deterministic hot-path import test still gates. Enforce it on an idle machine.
         env:
           AGENT_LEDGER_BENCH_ENFORCE: "0"
           AGENT_LEDGER_PACKAGING_TEST: "1"
         run: python -m pytest -q -rs
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      - name: Branch coverage (in-process; CLI subprocess paths are measured locally)
+        env:
+          AGENT_LEDGER_BENCH_ENFORCE: "0"
+        run: |
+          python -m coverage run -m pytest -q --deselect tests/test_benchmark.py::test_hook_latency_p95
+          python -m coverage combine || true
+          python -m coverage report --fail-under=78
+
+  fuzz-deep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      - name: Property-based fuzzing, deep profile (5,000 examples per property)
+        env:
+          HYPOTHESIS_PROFILE: deep
+        run: python -m pytest -q tests/test_fuzz.py
 
   lint-policy:
     runs-on: ubuntu-latest

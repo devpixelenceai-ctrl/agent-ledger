@@ -443,8 +443,13 @@ def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = No
         if tool == "Grep" and isinstance(ti.get("glob"), str):
             u.reads.append(classify(os.path.join(base, ti["glob"]), False, ctx.cwd, ctx))
     elif tool == "WebFetch":
-        h = _host(str(ti.get("url", "")))
-        u.hosts.append(h or "(invalid-url)")
+        # some agents fetch several URLs in one call (Gemini web_fetch, Cline): every host is checked
+        urls = [str(ti.get("url", ""))]
+        if isinstance(ti.get("urls"), list):
+            urls += [x for x in ti["urls"] if isinstance(x, str)]
+        for url in [x for x in dict.fromkeys(urls) if x] or [""]:
+            h = _host(url)
+            u.hosts.append(h or "(invalid-url)")
     elif tool.startswith("mcp__"):
         src = raw.get("mcp_server")
         u.mcp_source = src.get("source") if isinstance(src, dict) else None

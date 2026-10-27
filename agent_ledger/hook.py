@@ -98,7 +98,11 @@ def _adapter(agent: str):
         from agent_ledger.adapters import git
 
         return git
-    raise ValueError(f"unknown agent {agent!r} (supported: claude-code, opencode)")
+    from agent_ledger.adapters.agents import PROFILES
+
+    if agent in PROFILES:
+        return PROFILES[agent]
+    raise ValueError(f"unknown agent {agent!r} (supported: claude-code, opencode, git, {', '.join(sorted(PROFILES))})")
 
 
 def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseException | None, ad=None) -> None:
@@ -128,7 +132,7 @@ def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseExcept
         conn.close()
 
 
-def main(stdin=None, stdout=None, stderr=None, env=None, agent: str = "claude-code") -> int:
+def main(stdin=None, stdout=None, stderr=None, env=None, agent: str = "claude-code", event: str | None = None) -> int:
     stdin, stdout, stderr = stdin or sys.stdin, stdout or sys.stdout, stderr or sys.stderr
     env = os.environ if env is None else env
     cfg: Config | None = None
@@ -145,7 +149,7 @@ def main(stdin=None, stdout=None, stderr=None, env=None, agent: str = "claude-co
             raise ValueError("hook input is not a JSON object")
         event_type = data.get("hook_event_name") or ("PreToolUse" if data.get("phase") == "tool.before" else None)
         ad = _adapter(agent)
-        ev = ad.to_event(data, env)
+        ev = ad.to_event(data, env, event) if event else ad.to_event(data, env)
         event_type = ev.event_type
     except BaseException:
         log_error(env, "hook input error:\n" + _tb())

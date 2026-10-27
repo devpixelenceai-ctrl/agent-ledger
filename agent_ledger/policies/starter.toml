@@ -36,13 +36,22 @@ reason = "agent-ledger's log and configuration are off-limits to the agent"
 
 [[rule]]
 id = "self.policy-and-hooks"
-description = "The agent may not edit the policy file or the Claude Code settings that install the hooks"
+description = "The agent may not edit the policy file or the agent settings that install agent-ledger's hooks"
 paths = ["{project}/.agent-ledger.toml", "**/.claude/settings.json", "**/.claude/settings.local.json",
-         "**/opencode.json", "**/opencode.jsonc", "**/.opencode/**", "~/.config/opencode/**"]
+         "**/opencode.json", "**/opencode.jsonc", "**/.opencode/**", "~/.config/opencode/**",
+         # hook and plugin configuration of every supported agent (docs/agents.md)
+         "**/.codex/hooks.json", "**/.codex/config.toml", "**/.github/hooks/**", "~/.copilot/**",
+         "**/.cursor/hooks.json", "**/.gemini/settings.json", "~/.gemini/config/hooks.json", "**/.agents/hooks.json",
+         "**/.agents/plugins/**", "**/.cline/hooks/**", "**/.clinerules/hooks/**", "~/Documents/Cline/Hooks/**",
+         "**/.devin/hooks*.json", "**/.devin/config.json", "~/.config/devin/**", "~/.codeium/windsurf/hooks.json",
+         "/etc/devin/hooks.json", "**/crush.json", "**/.crush.json", "~/.config/crush/**", "**/.qwen/settings.json",
+         "**/.continue/settings*.json", "**/.factory/hooks.json", "**/.kiro/hooks/**", "**/.kiro/agents/**",
+         "**/.augment/settings.json", "**/.kilo/**", "**/.kilocode/**", "**/.amp/plugins/**", "~/.config/amp/plugins/**",
+         "**/.git/hooks/**", "**/.githooks/**"]
 access = "write"
 decision = "deny"
 severity = "critical"
-reason = "editing the agent-ledger policy or Claude Code hook settings is reserved for a human"
+reason = "editing the agent-ledger policy or the agent's hook settings is reserved for a human"
 
 [[rule]]
 id = "secrets.files"

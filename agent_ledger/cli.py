@@ -10,13 +10,17 @@ def main(argv: list[str] | None = None) -> int:
     if argv[:1] == ["hook"]:
         from agent_ledger.hook import main as hook_main
 
-        agent = "claude-code"
+        opts = {"--agent": "claude-code", "--event": None}
         rest = argv[1:]
-        if rest[:1] == ["--agent"] and len(rest) > 1:
-            agent = rest[1]
-        elif rest[:1] and rest[0].startswith("--agent="):
-            agent = rest[0].split("=", 1)[1]
-        return hook_main(agent=agent)
+        while rest:
+            key, _, value = rest[0].partition("=")
+            if key in opts and value:
+                opts[key], rest = value, rest[1:]
+            elif key in opts and len(rest) > 1:
+                opts[key], rest = rest[1], rest[2:]
+            else:
+                rest = rest[1:]
+        return hook_main(agent=opts["--agent"], event=opts["--event"])
     if argv[:1] == ["git-hook"]:
         from agent_ledger.githook import main as githook_main
 

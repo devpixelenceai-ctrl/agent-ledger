@@ -71,7 +71,13 @@ def _first_str(args: dict, keys) -> str | None:
 def _command(args: dict) -> str | None:
     """The shell command a tool call runs. Lists are argv (Codex: ["bash", "-lc", "ls"])."""
     if isinstance(args.get("commands"), list):
-        parts = [str(c) for c in args["commands"] if isinstance(c, (str, int, float))]
+        parts = []
+        for c in args["commands"]:
+            if isinstance(c, str):
+                parts.append(c)
+            elif isinstance(c, dict) and isinstance(c.get("command"), str):  # Cline: {command, args[]}
+                extra = c.get("args") if isinstance(c.get("args"), list) else []
+                parts.append(shlex.join([c["command"], *[str(a) for a in extra]]) if extra else c["command"])
         return " && ".join(parts) if parts else None
     for k in _COMMAND_KEYS:
         v = args.get(k)
@@ -197,4 +203,8 @@ def render_decision(decision: Decision | None, style: str, ask_supported: bool) 
         return json.dumps({"decision": verdict, "reason": reason}), 0
     if style == "cursor":
         return json.dumps({"permission": verdict, "user_message": reason, "agent_message": reason}), 0
+    if style == "devin":
+        return json.dumps({"decision": "block", "reason": reason}), 0
+    if style == "cline":
+        return json.dumps({"cancel": True, "errorMessage": reason}), 0
     raise ValueError(f"unknown reply style {style!r}")

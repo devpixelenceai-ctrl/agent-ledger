@@ -75,9 +75,9 @@ def test_apply_patch_paths():
     c = oc.normalize(envelope("apply_patch", {"patchText": PATCH}))
     ti = c["tool_input"]
     assert c["tool_name"] == "ApplyPatch"
-    n = os.path.normpath  # the adapter joins with the platform separator; policy normalises later
-    assert ti["file_paths"] == [n("/repo/src/new.py"), "/repo/src/old.py", n("/repo/src/moved.py")]
-    assert ti["delete_paths"] == [n("/repo/build/out.txt")] and ti["patch"] == PATCH
+    n = os.path.normpath  # separators (and 3.13's view of rooted paths) differ on Windows; compare normalised
+    assert [n(x) for x in ti["file_paths"]] == [n("/repo/src/new.py"), n("/repo/src/old.py"), n("/repo/src/moved.py")]
+    assert [n(x) for x in ti["delete_paths"]] == [n("/repo/build/out.txt")] and ti["patch"] == PATCH
 
 
 @pytest.mark.parametrize(

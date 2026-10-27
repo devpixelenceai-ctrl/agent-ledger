@@ -501,7 +501,7 @@ class PathPattern:
             if p.startswith("~"):
                 p = ctx.home + p[1:]
             if p.startswith("/") or (_WIN and re.match(r"[A-Za-z]:/", p)):
-                lit = re.split(r"[*?\[]", p, 1)[0]
+                lit = re.split(r"[*?\[]", p, maxsplit=1)[0]
                 head = lit.rsplit("/", 1)[0] if "/" in lit else lit
                 if head:
                     real = _real(head)

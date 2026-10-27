@@ -34,6 +34,8 @@ agent_ledger = ["policies/*.toml", "static/*.html", "integrations/*/*.js"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["bench: latency benchmark (spawns real hook processes)"]
+# a deprecation in our own code fails the build instead of hiding in thousands of log lines
+filterwarnings = ["error::DeprecationWarning:agent_ledger"]
 
 [project.urls]
 Homepage = "https://github.com/devpixelenceai-ctrl/agent-ledger"

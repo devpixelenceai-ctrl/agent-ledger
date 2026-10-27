@@ -53,9 +53,10 @@ def test_tool_mapping(tool, args, canon_tool, canon_input):
 
 def test_bash_workdir_becomes_cwd():
     c = oc.normalize(envelope("bash", {"command": "ls", "workdir": "/repo/sub"}))
-    assert c["cwd"] == os.path.normpath("/repo/sub") and "workdir" not in c["tool_input"]
+    same = lambda a, b: os.path.normpath(a) == os.path.normpath(b)  # noqa: E731  (separators differ on Windows)
+    assert same(c["cwd"], "/repo/sub") and "workdir" not in c["tool_input"]
     rel = oc.normalize(envelope("bash", {"command": "ls", "workdir": "sub"}))
-    assert rel["cwd"] == os.path.normpath("/repo/sub")
+    assert same(rel["cwd"], "/repo/sub")
 
 
 PATCH = """*** Begin Patch

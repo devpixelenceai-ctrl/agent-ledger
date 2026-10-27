@@ -25,7 +25,7 @@ def test_install_init_and_govern_fresh_repo(tmp_path):
     bindir = env_dir / ("Scripts" if os.name == "nt" else "bin")
     py = bindir / "python"
     subprocess.run([str(py), "-m", "pip", "install", "-q", str(ROOT)], check=True)
-    exe = bindir / "agent-ledger"
+    exe = bindir / ("agent-ledger.exe" if os.name == "nt" else "agent-ledger")
     assert exe.exists()
 
     home = tmp_path / "ledger-home"

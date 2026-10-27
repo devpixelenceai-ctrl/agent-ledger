@@ -38,9 +38,10 @@ def test_bad_max_field_chars_uses_default(tmp_path):
 def test_hmac_key_file_is_read_and_missing_file_warns(tmp_path):
     keyfile = tmp_path / "k"
     keyfile.write_text("s3cret-key\n")
-    (tmp_path / "config.toml").write_text(f'[ledger]\nhmac_key_file = "{keyfile}"\n')
+    # TOML literal strings ('...') so Windows backslashes are not read as escapes
+    (tmp_path / "config.toml").write_text(f"[ledger]\nhmac_key_file = '{keyfile}'\n")
     assert load_config({"AGENT_LEDGER_HOME": str(tmp_path)}).hmac_key == b"s3cret-key"
-    (tmp_path / "config.toml").write_text(f'[ledger]\nhmac_key_file = "{tmp_path / "missing"}"\n')
+    (tmp_path / "config.toml").write_text(f"[ledger]\nhmac_key_file = '{tmp_path / 'missing'}'\n")
     cfg = load_config({"AGENT_LEDGER_HOME": str(tmp_path)})
     assert cfg.hmac_key is None and any("hmac_key_file" in w for w in cfg.warnings)
 

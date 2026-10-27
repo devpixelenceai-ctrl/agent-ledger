@@ -157,6 +157,8 @@ hmac_key_file = "~/.config/agent-ledger.key"   # optional: HMAC rows with a key 
 max_field_chars = 65536
 ```
 
+On Windows, write paths in TOML as single-quoted literal strings, such as `db_path = 'C:\Users\me\ledger.db'`. In double quotes, backslashes are read as escape sequences.
+
 You can also use these environment variables: `AGENT_LEDGER_HOME`, `AGENT_LEDGER_DB`, `AGENT_LEDGER_FAIL_MODE` and `AGENT_LEDGER_HMAC_KEY`.
 
 **Fail open or fail closed?** agent-ledger never crashes your session. If it hits an internal error, it logs it to `~/.agent-ledger/errors.log` and then:

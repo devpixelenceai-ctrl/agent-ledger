@@ -53,9 +53,9 @@ def test_tool_mapping(tool, args, canon_tool, canon_input):
 
 def test_bash_workdir_becomes_cwd():
     c = oc.normalize(envelope("bash", {"command": "ls", "workdir": "/repo/sub"}))
-    assert c["cwd"] == "/repo/sub" and "workdir" not in c["tool_input"]
+    assert c["cwd"] == os.path.normpath("/repo/sub") and "workdir" not in c["tool_input"]
     rel = oc.normalize(envelope("bash", {"command": "ls", "workdir": "sub"}))
-    assert rel["cwd"] == "/repo/sub"
+    assert rel["cwd"] == os.path.normpath("/repo/sub")
 
 
 PATCH = """*** Begin Patch
@@ -74,8 +74,9 @@ def test_apply_patch_paths():
     c = oc.normalize(envelope("apply_patch", {"patchText": PATCH}))
     ti = c["tool_input"]
     assert c["tool_name"] == "ApplyPatch"
-    assert ti["file_paths"] == ["/repo/src/new.py", "/repo/src/old.py", "/repo/src/moved.py"]
-    assert ti["delete_paths"] == ["/repo/build/out.txt"] and ti["patch"] == PATCH
+    n = os.path.normpath  # the adapter joins with the platform separator; policy normalises later
+    assert ti["file_paths"] == [n("/repo/src/new.py"), "/repo/src/old.py", n("/repo/src/moved.py")]
+    assert ti["delete_paths"] == [n("/repo/build/out.txt")] and ti["patch"] == PATCH
 
 
 @pytest.mark.parametrize(

@@ -94,6 +94,10 @@ def _adapter(agent: str):
         from agent_ledger.adapters import opencode
 
         return opencode
+    if agent == "git":
+        from agent_ledger.adapters import git
+
+        return git
     raise ValueError(f"unknown agent {agent!r} (supported: claude-code, opencode)")
 
 
@@ -178,5 +182,6 @@ def main(stdin=None, stdout=None, stderr=None, env=None, agent: str = "claude-co
             log_error(env, "session warning error:\n" + _tb())
     out, code = ad.render(decision, ev.event_type, message)
     if out:
-        stdout.write(out)
+        # exit code 2 means "blocked": agents that read a block reason read it from stderr
+        (stderr if code == 2 else stdout).write(out)
     return code

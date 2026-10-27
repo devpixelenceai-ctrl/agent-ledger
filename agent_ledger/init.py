@@ -154,3 +154,58 @@ def install_opencode_plugin(project: Path, hook_argv: list[str], fail_closed: bo
     if not write_exclusive(path, text):
         raise InitError(f"{path} appeared while installing; nothing was changed")
     return True
+
+
+GIT_HOOK_MARKER = "agent-ledger-git-hook"
+GIT_HOOKS = ("pre-commit", "pre-push")
+
+
+def _git_hooks_dir(repo: Path) -> Path:
+    import subprocess
+
+    try:
+        out = subprocess.run(["git", "-c", "core.fsmonitor=false", "rev-parse", "--git-path", "hooks"], cwd=repo,
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise InitError(f"cannot run git: {e}") from e
+    if out.returncode != 0 or not out.stdout.strip():
+        raise InitError(f"{repo} is not a git repository")
+    return (Path(repo) / out.stdout.strip()).resolve()
+
+
+def render_git_hook(kind: str, cli_argv: list[str]) -> str:
+    import shlex
+
+    cmd = " ".join(shlex.quote(a) for a in [*cli_argv, "git-hook", kind])
+    return (f"#!/bin/sh\n# {GIT_HOOK_MARKER}: installed by `agent-ledger init --agent git`. "
+            f"Re-run init to update it.\nexec {cmd} \"$@\"\n")
+
+
+def install_git_hooks(repo: Path, cli_argv: list[str]) -> bool:
+    """Install pre-commit and pre-push hooks (honouring core.hooksPath). Returns True if any changed.
+
+    Never follows a symlink and never overwrites a hook that agent-ledger did not write: a
+    project's own hooks are left alone, and the error says how to chain them."""
+    hooks = _git_hooks_dir(repo)
+    planned = []
+    for kind in GIT_HOOKS:
+        path = hooks / kind
+        text = render_git_hook(kind, cli_argv)
+        if path.is_symlink():
+            raise InitError(f"{path} is a symlink; refusing to modify it")
+        if path.exists():
+            current = path.read_text("utf-8", "replace")
+            if GIT_HOOK_MARKER not in current:
+                raise InitError(f"{path} already exists and was not written by agent-ledger. Add this line to it "
+                                f"instead: {' '.join([*cli_argv, 'git-hook', kind])} \"$@\" || exit 1")
+            if current == text:
+                continue
+        planned.append((path, text))
+    for path, text in planned:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            _write_new(path, text)
+        elif not write_exclusive(path, text):
+            raise InitError(f"{path} appeared while installing; nothing more was changed")
+        os.chmod(path, 0o755)
+    return bool(planned)

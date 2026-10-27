@@ -17,6 +17,10 @@ def main(argv: list[str] | None = None) -> int:
         elif rest[:1] and rest[0].startswith("--agent="):
             agent = rest[0].split("=", 1)[1]
         return hook_main(agent=agent)
+    if argv[:1] == ["git-hook"]:
+        from agent_ledger.githook import main as githook_main
+
+        return githook_main(argv[1:])
     return _main_slow(argv)
 
 
@@ -27,9 +31,10 @@ def _build_parser():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("hook", help="hook entry point (run by Claude Code; reads JSON on stdin)")
+    sub.add_parser("git-hook", help="git pre-commit / pre-push entry point (installed by init --agent git)")
 
     i = sub.add_parser("init", help="install agent-ledger into a project (Claude Code hooks or an OpenCode plugin)")
-    i.add_argument("--agent", choices=["claude-code", "opencode"], default="claude-code",
+    i.add_argument("--agent", choices=["claude-code", "opencode", "git"], default="claude-code",
                    help="which agent to govern (default: claude-code)")
     i.add_argument("--project", help="project directory (default: current directory)")
     i.add_argument("--user", action="store_true", help="install into ~/.claude/settings.json instead")
@@ -154,6 +159,18 @@ def _cmd_init(args) -> int:
         plugin = project / ".opencode" / "plugins" / "agent-ledger.js"
         print(f"{'Installed' if changed else 'Already up to date:'} {plugin}")
         print(f"  hook: {' '.join(argv)}")
+    elif args.agent == "git":
+        from agent_ledger.init import install_git_hooks
+
+        cli = _hook_argv("git")[:-3]  # the agent-ledger command itself, without "hook --agent git"
+        try:
+            changed = install_git_hooks(project, cli)
+        except InitError as e:
+            print(f"agent-ledger init: {e}", file=sys.stderr)
+            return 1
+        print(f"{'Installed' if changed else 'Already up to date:'} git pre-commit and pre-push hooks")
+        print("  Commits and pushes by any tool (including agents without hooks) now go through the policy.")
+        print("  Aider skips git hooks by default: run it with --git-commit-verify.")
     elif _install_claude_hooks(args, project) != 0:
         return 1
     return _init_policy_and_config(args, project)

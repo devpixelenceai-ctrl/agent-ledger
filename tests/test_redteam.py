@@ -78,6 +78,7 @@ def test_fifo_git_head_does_not_hang(tmp_path):
     assert _fast(lambda: gitinfo.git_info(str(tmp_path))) == (None, None)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no POSIX file modes; files are protected by the user profile ACLs")
 def test_wal_and_shm_files_are_private(tmp_path):
     db = tmp_path / "l.db"
     conn = store.connect(db)
@@ -264,8 +265,8 @@ def test_symlink_target_is_resolved_against_the_link_directory(env):
     seg = parse("ln -s ../x sub/link", cwd=str(env.project), env={"HOME": str(env.home)}).segments[0]
     u = analyze_segment(seg, env.ctx)
     resolved = {r.resolved for r in u.reads if r.resolved}
-    assert str(env.project / "x") in resolved            # what the link will really point at
-    assert str(env.project.parent / "x") not in resolved  # not resolved against the cwd
+    assert (env.project / "x").as_posix() in resolved            # what the link will really point at
+    assert (env.project.parent / "x").as_posix() not in resolved  # not resolved against the cwd
 
 
 def test_copying_into_a_temp_root_is_fine_but_replacing_it_is_not(env):

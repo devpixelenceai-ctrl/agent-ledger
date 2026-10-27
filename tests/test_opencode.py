@@ -53,9 +53,10 @@ def test_tool_mapping(tool, args, canon_tool, canon_input):
 
 def test_bash_workdir_becomes_cwd():
     c = oc.normalize(envelope("bash", {"command": "ls", "workdir": "/repo/sub"}))
-    assert c["cwd"] == "/repo/sub" and "workdir" not in c["tool_input"]
+    same = lambda a, b: os.path.normpath(a) == os.path.normpath(b)  # noqa: E731  (separators differ on Windows)
+    assert same(c["cwd"], "/repo/sub") and "workdir" not in c["tool_input"]
     rel = oc.normalize(envelope("bash", {"command": "ls", "workdir": "sub"}))
-    assert rel["cwd"] == "/repo/sub"
+    assert same(rel["cwd"], "/repo/sub")
 
 
 PATCH = """*** Begin Patch
@@ -74,8 +75,9 @@ def test_apply_patch_paths():
     c = oc.normalize(envelope("apply_patch", {"patchText": PATCH}))
     ti = c["tool_input"]
     assert c["tool_name"] == "ApplyPatch"
-    assert ti["file_paths"] == ["/repo/src/new.py", "/repo/src/old.py", "/repo/src/moved.py"]
-    assert ti["delete_paths"] == ["/repo/build/out.txt"] and ti["patch"] == PATCH
+    n = os.path.normpath  # separators (and 3.13's view of rooted paths) differ on Windows; compare normalised
+    assert [n(x) for x in ti["file_paths"]] == [n("/repo/src/new.py"), n("/repo/src/old.py"), n("/repo/src/moved.py")]
+    assert [n(x) for x in ti["delete_paths"]] == [n("/repo/build/out.txt")] and ti["patch"] == PATCH
 
 
 @pytest.mark.parametrize(
@@ -254,7 +256,8 @@ def test_init_fail_closed_bakes_into_plugin(tmp_path):
 NODE = shutil.which("node")
 
 DRIVER = r"""
-const mod = await import(process.argv[2]);
+const { pathToFileURL } = await import("node:url");
+const mod = await import(pathToFileURL(process.argv[2]).href);  // bare C:\ paths are not importable on Windows
 const names = Object.keys(mod);
 if (names.length !== 1 || typeof mod[names[0]] !== "function") throw new Error("plugin must export exactly one function, got " + names);
 const hooks = await mod[names[0]]({ directory: process.argv[3], worktree: process.argv[3] });

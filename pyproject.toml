@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "hypothesis>=6.100", "coverage>=7.4"]
 
 [project.scripts]
 agent-ledger = "agent_ledger.cli:main"
@@ -34,9 +34,21 @@ agent_ledger = ["policies/*.toml", "static/*.html", "integrations/*/*.js"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["bench: latency benchmark (spawns real hook processes)"]
+# a deprecation in our own code fails the build instead of hiding in thousands of log lines
+filterwarnings = ["error::DeprecationWarning:agent_ledger"]
 
 [project.urls]
 Homepage = "https://github.com/devpixelenceai-ctrl/agent-ledger"
 Issues = "https://github.com/devpixelenceai-ctrl/agent-ledger/issues"
 Changelog = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/CHANGELOG.md"
 Security = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/SECURITY.md"
+
+[tool.coverage.run]
+source = ["agent_ledger"]
+branch = true
+parallel = true
+sigterm = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

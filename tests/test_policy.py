@@ -1,4 +1,5 @@
 import json
+import os
 import time
 
 import pytest
@@ -116,6 +117,7 @@ def test_invalid_user_policy_falls_back(tmp_path):
     assert p.hash.startswith("builtin:") and any("invalid user policy" in w for w in p.warnings)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no POSIX file modes; files are protected by the user profile ACLs")
 def test_trust_file_permissions(tmp_path):
     f = tmp_path / ".agent-ledger.toml"
     f.write_text(MIN)

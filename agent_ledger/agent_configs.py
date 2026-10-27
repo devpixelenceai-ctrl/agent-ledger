@@ -62,7 +62,10 @@ _WINDSURF = {f"{phase}_{kind}": phase for phase in ("pre", "post")
 
 CONFIGS: dict[str, Spec] = {s.name: s for s in (
     Spec("codex", ".codex/hooks.json", "nested", _PRE_POST, matcher=".*",
-         entry=lambda c, fc: {"type": "command", "command": c, "timeout": 10}),
+         entry=lambda c, fc: {"type": "command", "command": c, "timeout": 10},
+         note="IMPORTANT: Codex skips new hooks until you approve them. Start `codex` once in this project and "
+              "approve the agent-ledger hooks in its review screen; until then Codex runs ungoverned "
+              "(`codex exec` never asks)."),
     Spec("copilot", ".github/hooks/agent-ledger.json", "flat", {"preToolUse": "pre", "postToolUse": "post"}, owned=True,
          top={"version": 1}, entry=lambda c, fc: {"type": "command", "bash": c, "timeoutSec": 30}),
     Spec("cursor", ".cursor/hooks.json", "flat", {"preToolUse": "pre", "postToolUse": "post"}, top={"version": 1},

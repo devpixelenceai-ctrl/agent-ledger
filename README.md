@@ -65,21 +65,21 @@ agent-ledger is not on PyPI yet. An unrelated project already uses the `agent-le
 
 ## Supported agents
 
-| Agent | How agent-ledger plugs in | Set up with |
-|---|---|---|
-| **Claude Code** | Hooks in `.claude/settings.json` | `agent-ledger init` |
-| **OpenCode** (v1.x) | A plugin in `.opencode/plugins/` | `agent-ledger init --agent opencode` |
+agent-ledger governs **19 coding agents** with one policy, one ledger, and the same reports and dashboard. Set any of them up in a project with `agent-ledger init --agent <name>`:
 
-Both agents share the same policy, ledger, reports and dashboard.
+| | Agents |
+|---|---|
+| **Hooks** | Claude Code (default), OpenAI Codex CLI, GitHub Copilot CLI, Cursor, Gemini CLI, Antigravity, Cline, Windsurf / Devin Desktop, Goose, Crush, Qwen Code, Continue, Factory Droid, Kiro, Auggie, Devin CLI |
+| **Plugins** | OpenCode 1.x and 2.x, Kilo Code, Amp |
+| **Agents without hooks** (Aider, Warp, Zed) | `--agent git`: pre-commit and pre-push hooks govern what they commit and push |
 
-OpenCode's v1 plugin API cannot show an approval prompt, so under OpenCode an "ask" blocks the call. The agent is told the call needs human approval.
+Where an agent can show an approval prompt, an "ask" uses it. Where it can't, the call is blocked and the agent is told it needs human approval, so nothing that needs approval is ever allowed silently. [docs/agents.md](docs/agents.md) has the full matrix: where each agent's config goes, how "ask" behaves, which integrations were run live and which were contract-tested, and per-agent notes.
 
-agent-ledger has been tested on real work with OpenCode and a free local 8B model (qwen3:8b via Ollama) on django, fastify and hugo:
-- every tool call was recorded;
-- no secrets leaked;
-- no hook crashed.
+**One step for Codex:** approve the hooks once by starting `codex` in the project. Until then, Codex skips them and runs ungoverned.
 
-See [docs/real-world-trial.md](docs/real-world-trial.md).
+Live runs with free local models (qwen3:8b via Ollama):
+- OpenCode on django, fastify and hugo: every tool call was recorded, no secrets leaked, and no hook crashed. See [docs/real-world-trial.md](docs/real-world-trial.md).
+- Codex, OpenCode 2.x and others, end to end: each one's block, approval and allow paths work.
 
 ## What you get
 

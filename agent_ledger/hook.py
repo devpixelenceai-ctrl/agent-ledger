@@ -90,19 +90,21 @@ def _policy_ref(cfg: Config, ev: Event) -> str:
 def _adapter(agent: str):
     if agent == "claude-code":
         return adapter
-    if agent == "opencode":
+    if agent in ("opencode", "kilo"):
         from agent_ledger.adapters import opencode
 
-        return opencode
+        return opencode if agent == "opencode" else opencode.KILO
     if agent == "git":
         from agent_ledger.adapters import git
 
         return git
-    from agent_ledger.adapters.agents import PROFILES
+    from agent_ledger.adapters.agents import PLUGIN_PROFILES, PROFILES
 
-    if agent in PROFILES:
-        return PROFILES[agent]
-    raise ValueError(f"unknown agent {agent!r} (supported: claude-code, opencode, git, {', '.join(sorted(PROFILES))})")
+    profile = PROFILES.get(agent) or PLUGIN_PROFILES.get(agent)
+    if profile is not None:
+        return profile
+    raise ValueError(f"unknown agent {agent!r} (supported: claude-code, opencode, kilo, git, "
+                     f"{', '.join(sorted({**PROFILES, **PLUGIN_PROFILES}))})")
 
 
 def _record(cfg: Config, ev: Event, decision: Decision | None, error: BaseException | None, ad=None) -> None:

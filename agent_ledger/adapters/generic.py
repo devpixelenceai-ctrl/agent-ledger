@@ -203,6 +203,8 @@ def render_decision(decision: Decision | None, style: str, ask_supported: bool) 
         return json.dumps({"decision": verdict, "reason": reason}), 0
     if style == "cursor":
         return json.dumps({"permission": verdict, "user_message": reason, "agent_message": reason}), 0
+    if style == "plugin":  # our own plugins (Amp) read {"decision", "reason"} and handle "ask" themselves
+        return json.dumps({"decision": verdict, "reason": reason}), 0
     if style == "devin":
         return json.dumps({"decision": "block", "reason": reason}), 0
     if style == "cline":

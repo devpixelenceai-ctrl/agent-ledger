@@ -40,7 +40,7 @@ def _build_parser():
     i = sub.add_parser("init", help="install agent-ledger into a project (Claude Code hooks or an OpenCode plugin)")
     from agent_ledger.agent_configs import CONFIGS
 
-    i.add_argument("--agent", choices=["claude-code", "opencode", "git", *sorted(CONFIGS)], default="claude-code",
+    i.add_argument("--agent", choices=["claude-code", "opencode", "kilo", "amp", "git", *sorted(CONFIGS)], default="claude-code",
                    help="which agent to govern (default: claude-code)")
     i.add_argument("--project", help="project directory (default: current directory)")
     i.add_argument("--user", action="store_true", help="install into ~/.claude/settings.json instead")
@@ -153,16 +153,21 @@ def _cmd_init(args) -> int:
     from agent_ledger.init import InitError
 
     project = Path(args.project or os.getcwd()).resolve()
-    if args.agent == "opencode":
-        from agent_ledger.init import install_opencode_plugin
+    if args.agent in ("opencode", "kilo", "amp"):
+        from agent_ledger.init import install_amp_plugin, install_opencode_plugin
 
-        argv = _hook_argv("opencode")
+        argv = _hook_argv(args.agent)
+        rel = {"opencode": ".opencode/plugins/agent-ledger.js", "kilo": ".kilo/plugins/agent-ledger.js",
+               "amp": ".amp/plugins/agent-ledger.ts"}[args.agent]
         try:
-            changed = install_opencode_plugin(project, argv, fail_closed=args.fail_closed)
+            if args.agent == "amp":
+                changed = install_amp_plugin(project, argv, fail_closed=args.fail_closed)
+            else:
+                changed = install_opencode_plugin(project, argv, fail_closed=args.fail_closed, dest=os.path.dirname(rel))
         except InitError as e:
             print(f"agent-ledger init: {e}", file=sys.stderr)
             return 1
-        plugin = project / ".opencode" / "plugins" / "agent-ledger.js"
+        plugin = project / rel
         print(f"{'Installed' if changed else 'Already up to date:'} {plugin}")
         print(f"  hook: {' '.join(argv)}")
     elif args.agent not in ("claude-code", "git"):

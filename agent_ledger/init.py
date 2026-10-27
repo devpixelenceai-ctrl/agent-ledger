@@ -133,18 +133,23 @@ def render_opencode_plugin(hook_argv: list[str], fail_closed: bool = False) -> s
     )
 
 
-def install_opencode_plugin(project: Path, hook_argv: list[str], fail_closed: bool = False) -> bool:
-    """Install the plugin as <project>/.opencode/plugins/agent-ledger.js. Returns True if it changed.
+def install_opencode_plugin(project: Path, hook_argv: list[str], fail_closed: bool = False,
+                            dest: str = ".opencode/plugins") -> bool:
+    """Install the plugin as <project>/<dest>/agent-ledger.js. Returns True if it changed.
 
+    `dest` is ".kilo/plugins" for Kilo Code, which runs OpenCode's V1 plugin API.
     Never follows a symlink there and never overwrites a file that agent-ledger did not write.
     """
-    path = Path(project) / ".opencode" / "plugins" / "agent-ledger.js"
-    text = render_opencode_plugin(hook_argv, fail_closed)
+    return _install_plugin_file(Path(project) / dest / "agent-ledger.js", render_opencode_plugin(hook_argv, fail_closed),
+                                OPENCODE_MARKER)
+
+
+def _install_plugin_file(path: Path, text: str, marker: str) -> bool:
     if path.is_symlink():
         raise InitError(f"{path} is a symlink; refusing to modify it")
     if path.exists():
         current = path.read_text("utf-8", "replace")
-        if OPENCODE_MARKER not in current:
+        if marker not in current:
             raise InitError(f"{path} exists and was not written by agent-ledger; move it aside first")
         if current == text:
             return False
@@ -209,3 +214,21 @@ def install_git_hooks(repo: Path, cli_argv: list[str]) -> bool:
             raise InitError(f"{path} appeared while installing; nothing more was changed")
         os.chmod(path, 0o755)
     return bool(planned)
+
+
+# ---------------------------------------------------------------- Amp
+
+AMP_TEMPLATE = Path(__file__).with_name("integrations") / "amp" / "agent-ledger.ts"
+AMP_MARKER = "agent-ledger-plugin:amp"
+
+
+def render_amp_plugin(hook_argv: list[str], fail_closed: bool = False) -> str:
+    src = AMP_TEMPLATE.read_text("utf-8")
+    return src.replace("__HOOK_ARGV__", json.dumps(list(hook_argv))).replace(
+        "__FAIL_CLOSED__", "true" if fail_closed else "false")
+
+
+def install_amp_plugin(project: Path, hook_argv: list[str], fail_closed: bool = False) -> bool:
+    """Install the plugin as <project>/.amp/plugins/agent-ledger.ts. Returns True if it changed."""
+    return _install_plugin_file(Path(project) / ".amp" / "plugins" / "agent-ledger.ts",
+                                render_amp_plugin(hook_argv, fail_closed), AMP_MARKER)

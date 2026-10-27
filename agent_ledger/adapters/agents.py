@@ -333,3 +333,30 @@ PROFILES: dict[str, Profile] = {p.name: p for p in (
                    "grep": "Grep", "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite",
                    "exit_plan_mode": "ExitPlanMode", "skill": "Skill", "run_subagent": "Task"}),
 )}
+
+
+# ---------------------------------------------------------------- agents governed through a plugin
+
+class _Amp(Profile):
+    """Envelopes from integrations/amp/agent-ledger.ts. The plugin passes the shell command Amp's own
+    helper extracted (amp.helpers.shellCommandFromToolCall) when there is one."""
+
+    def fields(self, data):
+        phase = data.get("phase")
+        f = {"event": {"tool.before": "PreToolUse", "tool.after": "PostToolUse", "tool.error": "PostToolUseFailure"}.get(phase),
+             "tool": data.get("tool"), "args": data.get("args"), "session": data.get("sessionID"),
+             "cwd": data.get("directory"), "response": data.get("output") if phase == "tool.after" else data.get("error"),
+             "prompt": None}
+        shell = data.get("shell")
+        if isinstance(shell, dict) and isinstance(shell.get("command"), str):
+            f.update(tool="Bash", args={"command": shell["command"], **({"cwd": shell["dir"]} if shell.get("dir") else {})})
+        return f
+
+
+PLUGIN_PROFILES: dict[str, Profile] = {p.name: p for p in (
+    # the plugin asks through Amp's own ctx.ui.confirm, and rejects when it cannot
+    _Amp("amp", "plugin", ask=True,
+         names={"Bash": "Bash", "shell_command": "Bash", "Read": "Read", "edit_file": "Edit", "create_file": "Write",
+                "read_web_page": "WebFetch", "web_search": "WebSearch", "Grep": "Grep", "glob": "Glob", "Task": "Task",
+                "todo_write": "TodoWrite"}),
+)}

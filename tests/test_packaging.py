@@ -64,3 +64,20 @@ def test_install_init_and_govern_fresh_repo(tmp_path):
     # the secret from .env never reached the ledger
     for f in home.glob("ledger.db*"):
         assert b"Zz9Zz9Zz9" not in f.read_bytes()
+
+
+def test_installed_package_can_set_up_every_agent(tmp_path):
+    """Every agent's init works from an installed wheel (plugin templates are package data)."""
+    env_dir = tmp_path / "venv"
+    venv.create(env_dir, with_pip=True)
+    bindir = env_dir / ("Scripts" if os.name == "nt" else "bin")
+    subprocess.run([str(bindir / "python"), "-m", "pip", "install", "-q", str(ROOT)], check=True)
+    exe = bindir / ("agent-ledger.exe" if os.name == "nt" else "agent-ledger")
+    from agent_ledger.agent_configs import CONFIGS
+
+    for agent in ["opencode", "kilo", "amp", *sorted(CONFIGS)]:
+        repo = tmp_path / agent
+        repo.mkdir()
+        r = subprocess.run([str(exe), "init", "--agent", agent, "--project", str(repo)], capture_output=True, text=True,
+                           env={**os.environ, "AGENT_LEDGER_HOME": str(tmp_path / "home")})
+        assert r.returncode == 0, (agent, r.stderr)

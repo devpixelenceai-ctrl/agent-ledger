@@ -154,3 +154,23 @@ def render(decision: Decision | None, event_type: str, system_message: str | Non
         return "", 0
     reason = f"agent-ledger [{decision.rule_id}]: {decision.reason or decision.rule_id}"
     return json.dumps({"decision": decision.decision, "reason": reason}), 0
+
+
+class _Variant:
+    """An agent that runs OpenCode's plugin API under its own name (Kilo Code)."""
+
+    def __init__(self, agent: str):
+        self.agent = agent
+
+    def to_event(self, data: dict, env) -> Event:
+        ev = to_event(data, env)
+        ev.agent = self.agent
+        return ev
+
+    stored_payload = staticmethod(stored_payload)
+    summarize = staticmethod(summarize)
+    session_meta = staticmethod(session_meta)
+    render = staticmethod(render)
+
+
+KILO = _Variant("kilo")

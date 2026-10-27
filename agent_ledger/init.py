@@ -122,7 +122,7 @@ def install_hooks(settings_path, command: str, fail_closed: bool = False) -> boo
 # ---------------------------------------------------------------- OpenCode
 
 OPENCODE_TEMPLATE = Path(__file__).with_name("integrations") / "opencode" / "agent-ledger.js"
-OPENCODE_MARKER = "agent-ledger-plugin:v1"
+OPENCODE_MARKER = "agent-ledger-plugin:"  # any version of our own plugin (v1, v2, ...) may be upgraded
 
 
 def render_opencode_plugin(hook_argv: list[str], fail_closed: bool = False) -> str:

@@ -24,7 +24,7 @@ That writes the agent's own hook or plugin configuration, plus the starter polic
 |---|---|---|---|---|
 | Claude Code | `claude-code` (default) | `.claude/settings.json` hooks | prompt | live |
 | OpenCode 1.x and 2.x | `opencode` | `.opencode/plugins/agent-ledger.js` | 2.x prompt, 1.x blocks | live (1.19, 2.1.4) |
-| OpenAI Codex CLI | `codex` | `.codex/hooks.json` | blocks (Codex rejects `ask`) | LIVE_CODEX |
+| OpenAI Codex CLI | `codex` | `.codex/hooks.json` | blocks (Codex rejects `ask`) | live (0.164; after approving its hooks) |
 | GitHub Copilot CLI | `copilot` | `.github/hooks/agent-ledger.json` | prompt (interactive) | contract |
 | Cursor | `cursor` | `.cursor/hooks.json` | blocks (`ask` not enforced yet) | contract |
 | Gemini CLI | `gemini` | `.gemini/settings.json` (trusted folders only) | prompt | contract (0.67) |
@@ -32,8 +32,8 @@ That writes the agent's own hook or plugin configuration, plus the starter polic
 | Cline (VS Code and CLI) | `cline` | `.clinerules/hooks/PreToolUse` and `PostToolUse`; turn on "Enable Hooks" | blocks | contract (4.1.26 / CLI 3.0.74) |
 | Windsurf / Devin Desktop | `windsurf` | `.devin/hooks.json` | blocks | contract |
 | Goose | `goose` | plugin `.agents/plugins/agent-ledger/`; enable it in Goose | blocks | contract (1.56) |
-| Crush | `crush` | `.crush.json` (or `crush.json`) | blocks | LIVE_CRUSH |
-| Qwen Code | `qwen` | `.qwen/settings.json` | prompt | LIVE_QWEN |
+| Crush | `crush` | `.crush.json` (or `crush.json`) | blocks | live (0.98.2) |
+| Qwen Code | `qwen` | `.qwen/settings.json` | prompt | live for reads and results (0.26.2); shell paths contract |
 | Continue CLI | `continue` | `.continue/settings.json` | prompt | contract (see note) |
 | Factory Droid | `factory` | `.factory/hooks.json` | prompt | contract |
 | Kiro CLI | `kiro` | `.kiro/hooks/agent-ledger.json` | blocks | contract |

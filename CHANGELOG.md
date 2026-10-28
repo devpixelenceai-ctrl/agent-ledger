@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `agent-ledger doctor` checks that every agent set up in a project is really governed:
+  - its hook command exists;
+  - its hooks have fired at least once in this project, and if not, how to fix that for that agent;
+  - the project policy is trusted;
+  - no hook errors were logged recently.
+
+  It exits non-zero when something needs attention, and `--json` gives machine-readable output.
+
 ## 0.2.0 (2026-10-28)
 
 ### Every major coding agent

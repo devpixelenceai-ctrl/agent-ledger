@@ -10,6 +10,21 @@ agent-ledger init --agent <name>
 
 That writes the agent's own hook or plugin configuration, plus the starter policy (`.agent-ledger.toml`, trusted). Re-running it is safe: it updates only its own entries and keeps your other settings and hooks.
 
+## Check it's working
+
+```bash
+agent-ledger doctor
+```
+
+An agent can have the hooks installed and still run ungoverned:
+- Codex skips hooks you haven't approved.
+- Gemini ignores project hooks outside trusted folders.
+- Cline needs "Enable Hooks".
+- Goose needs its plugin enabled.
+- A hook that can't start fails open.
+
+`doctor` finds every agent set up in the project and checks that the command its hook runs exists, and that the ledger has recorded events from that agent in this project. For an agent whose hooks have never fired, it tells you the agent's own fix. It also checks that the project policy is trusted, and flags hook errors logged in the last 24 hours. It exits non-zero when anything needs attention, and `--json` gives machine-readable output.
+
 ## The matrix
 
 "Ask" is how a decision of `ask` reaches you:

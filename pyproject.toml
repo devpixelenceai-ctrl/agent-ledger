@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-ledger-guard"
-version = "0.3.1"
+version = "0.3.2"
 description = "Tamper-evident flight recorder and policy gate for AI coding agents: Claude Code, Codex, OpenCode, Cursor, Gemini, Cline, Goose and more."
 readme = "README.md"
 requires-python = ">=3.11"

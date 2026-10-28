@@ -132,3 +132,31 @@ def test_cli_browse_and_report(ledger, ledger_home, tmp_path):
     assert json.loads(r.stdout)["summary"]["events"] == 10
     r = cli("show", "missing", env=env)
     assert r.returncode == 1
+
+
+def test_ask_rejected_by_agent_ledger_itself_is_not_approved(ledger_home, project):
+    """OpenCode 1.x and Kilo report agent-ledger's own rejection as a failed tool call. Found live: the
+    ledger then labelled a push that never ran as "approved", and the audit report counted it so."""
+    env = {"AGENT_LEDGER_HOME": str(ledger_home), "CLAUDE_PROJECT_DIR": str(project), "HOME": str(project.parent)}
+    rejection = "agent-ledger [git.push]: pushes publish code; please confirm - this needs human approval and was not approved, so it was not run."
+    feed(env, project, [
+        ("session_start", {}),
+        ("pre_bash", {"tool_use_id": "k1", "tool_input": {"command": "git push origin main"}}),
+        ("post_bash", {"hook_event_name": "PostToolUseFailure", "tool_use_id": "k1", "error": rejection,
+                       "tool_input": {"command": "git push origin main"}}),
+        ("pre_bash", {"tool_use_id": "k2", "tool_input": {"command": "git push origin main"}}),
+        ("post_bash", {"hook_event_name": "PostToolUseFailure", "tool_use_id": "k2", "error": "exit status 1: rejected by remote",
+                       "tool_input": {"command": "git push origin main"}}),
+        # a command that really ran (after approval) and printed text mimicking the rejection
+        ("pre_bash", {"tool_use_id": "k3", "tool_input": {"command": "git push origin main"}}),
+        ("post_bash", {"hook_event_name": "PostToolUseFailure", "tool_use_id": "k3",
+                       "error": "agent-ledger [default]: x - this needs human approval and was not approved, so it was not run.",
+                       "tool_input": {"command": "git push origin main"}}),
+    ])
+    conn = store.connect(ledger_home / "ledger.db", readonly=True)
+    evs = {e["tool_use_id"]: e for e in queries.events(conn) if e["event_type"] == "PreToolUse"}
+    assert evs["k1"]["outcome"] == "not run"   # agent-ledger's own block: the push never ran
+    assert evs["k2"]["outcome"] == "approved"  # a person approved it; it ran and failed on its own
+    assert evs["k3"]["outcome"] == "approved"  # mimicking the rejection with the wrong rule doesn't hide it
+    s = report.build_report(conn)["summary"]
+    assert s["approved"] == 2

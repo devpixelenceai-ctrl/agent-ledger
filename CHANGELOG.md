@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Verified live with a free local model: Goose 1.56, Cline CLI 3.0.74 and Kilo Code 7.8.18. In each, the secret read was blocked and the push was held.
+- Fix: for OpenCode 1.x and Kilo, a blocked "ask" was labelled "approved" in the ledger, reports and dashboard (red-team finding 19). The call itself was blocked correctly; only the record was wrong.
+- Goose: its own read-only extension-manager tools no longer need approval. The setup note now says Goose loads project plugins automatically.
+- Cline: the CLI runs agent-ledger's hooks with no setup; "Enable Hooks" is needed only in the VS Code extension.
+
 ## 0.3.0 (2026-10-28)
 
 - `agent-ledger doctor` checks that every agent set up in a project is really governed:

@@ -19,8 +19,8 @@ agent-ledger doctor
 An agent can have the hooks installed and still run ungoverned:
 - Codex skips hooks you haven't approved.
 - Gemini ignores project hooks outside trusted folders.
-- Cline needs "Enable Hooks".
-- Goose needs its plugin enabled.
+- Cline's VS Code extension needs "Enable Hooks".
+- Goose skips plugins listed as disabled.
 - A hook that can't start fails open.
 
 `doctor` finds every agent set up in the project and checks that the command its hook runs exists, and that the ledger has recorded events from that agent in this project. For an agent whose hooks have never fired, it tells you the agent's own fix. It also checks that the project policy is trusted, and flags hook errors logged in the last 24 hours. It exits non-zero when anything needs attention, and `--json` gives machine-readable output.
@@ -44,9 +44,9 @@ An agent can have the hooks installed and still run ungoverned:
 | Cursor | `cursor` | `.cursor/hooks.json` | blocks (`ask` not enforced yet) | contract |
 | Gemini CLI | `gemini` | `.gemini/settings.json` (trusted folders only) | prompt | contract (0.67) |
 | Antigravity CLI | `antigravity` | `.agents/hooks.json` | prompt | contract |
-| Cline (VS Code and CLI) | `cline` | `.clinerules/hooks/PreToolUse` and `PostToolUse`; turn on "Enable Hooks" | blocks | contract (4.1.26 / CLI 3.0.74) |
+| Cline (VS Code and CLI) | `cline` | `.clinerules/hooks/PreToolUse` and `PostToolUse`; in VS Code also turn on "Enable Hooks" | blocks (Cline auto-approves by default, so this block is the safeguard) | live (CLI 3.0.74); VS Code contract (4.1.26) |
 | Windsurf / Devin Desktop | `windsurf` | `.devin/hooks.json` | blocks | contract |
-| Goose | `goose` | plugin `.agents/plugins/agent-ledger/`; enable it in Goose | blocks | contract (1.56) |
+| Goose | `goose` | plugin `.agents/plugins/agent-ledger/`, loaded automatically | blocks | live (1.56) |
 | Crush | `crush` | `.crush.json` (or `crush.json`) | blocks | live (0.98.2) |
 | Qwen Code | `qwen` | `.qwen/settings.json` | prompt | live for reads and results (0.26.2); shell paths contract |
 | Continue CLI | `continue` | `.continue/settings.json` | prompt | contract (see note) |
@@ -54,7 +54,7 @@ An agent can have the hooks installed and still run ungoverned:
 | Kiro CLI | `kiro` | `.kiro/hooks/agent-ledger.json` | blocks | contract |
 | Auggie CLI | `auggie` | `.augment/settings.json` plus `.augment/hooks/*.sh` | blocks (deny-only hooks) | contract |
 | Devin CLI | `devin` | `.devin/hooks.v1.json` | blocks | contract |
-| Kilo Code | `kilo` | `.kilo/plugins/agent-ledger.js` (OpenCode plugin API) | blocks | contract (7.8.18) |
+| Kilo Code | `kilo` | `.kilo/plugins/agent-ledger.js` (OpenCode plugin API) | blocks | live (7.8.18) |
 | Amp | `amp` | `.amp/plugins/agent-ledger.ts` | prompt (`ctx.ui.confirm`) | contract |
 | Anything that commits with git | `git` | `.git/hooks/pre-commit` and `pre-push` | blocks | real `git commit` in tests |
 

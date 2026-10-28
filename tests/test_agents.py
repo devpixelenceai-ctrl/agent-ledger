@@ -313,3 +313,12 @@ def test_qwen_tool_call_bridge_is_checked_as_the_inner_tool(ledger_home, project
     assert verdict("qwen", *run("qwen", data, ledger_home)) == "deny"
     data["tool_input"] = {"name": "read_file", "args": {"file_path": str(project / "README.md")}}
     assert verdict("qwen", *run("qwen", data, ledger_home)) == "allow"
+
+
+@pytest.mark.parametrize("tool,expected", [("extensionmanager__list_resources", "allow"),
+                                           ("extensionmanager__read_resource", "allow"),
+                                           ("extensionmanager__manage_extensions", "deny")])  # ask -> block in Goose
+def test_goose_extension_manager_tools(ledger_home, project, tool, expected):
+    # found live: Goose's own read-only extension tools needed approval
+    data = {"event": "PreToolUse", "session_id": "s1", "tool_name": tool, "tool_input": {}, "working_dir": str(project)}
+    assert verdict("goose", *run("goose", data, ledger_home)) == expected

@@ -55,7 +55,18 @@ def resolve_session(conn, prefix: str) -> dict | None:
 
 def _outcomes(rows: list[dict]) -> None:
     """Annotate PreToolUse rows with what happened: allowed / approved / denied / blocked / not run."""
-    ran = {r["tool_use_id"] for r in rows if r["event_type"] in ("PostToolUse", "PostToolUseFailure") and r["tool_use_id"]}
+    # OpenCode 1.x and Kilo report the plugin's own block of an "ask" as a failed tool call, so that failure
+    # means the tool never ran. Only agent-ledger's exact rejection for that call's rule counts: the error
+    # text of a tool that really ran is the tool's own output, which an agent could shape.
+    rules = {r["tool_use_id"]: r["rule_id"] for r in rows if r["event_type"] == "PreToolUse" and r["tool_use_id"]}
+
+    def _rejected(r) -> bool:
+        err = str(payload(r).get("error") or "")
+        return (err.startswith(f"agent-ledger [{rules.get(r['tool_use_id'])}]:")
+                and err.endswith("this needs human approval and was not approved, so it was not run."))
+
+    ran = {r["tool_use_id"] for r in rows if r["tool_use_id"] and (
+        r["event_type"] == "PostToolUse" or (r["event_type"] == "PostToolUseFailure" and not _rejected(r)))}
     denied_ids = {r["tool_use_id"] for r in rows if r["event_type"] == "PermissionDenied" and r["tool_use_id"]}
     for r in rows:
         if r["event_type"] != "PreToolUse":

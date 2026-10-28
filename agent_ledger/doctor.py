@@ -1,8 +1,8 @@
 """`agent-ledger doctor`: is every agent set up in this project really governed?
 
 An agent can have agent-ledger's hooks installed and still run ungoverned: Codex skips hooks you
-haven't approved, Gemini ignores project hooks outside trusted folders, Cline needs "Enable Hooks",
-Goose needs its plugin enabled. A hook that can't start fails open, silently. doctor checks, for
+haven't approved, Gemini ignores project hooks outside trusted folders, Cline's VS Code extension needs
+"Enable Hooks", and Goose skips plugins listed as disabled. A hook that can't start fails open, silently. doctor checks, for
 every agent set up in the project:
 
 - the hook entry is there, and the command it runs exists;
@@ -32,8 +32,9 @@ HINTS = {
              "once and approve the agent-ledger hooks.",
     "gemini": "Gemini only runs project hooks in trusted folders: trust this folder when Gemini asks.",
     "qwen": "If Qwen's folder trust is on, trust this folder.",
-    "cline": 'Turn on "Enable Hooks" in Cline\'s feature settings.',
-    "goose": "Enable the agent-ledger plugin in Goose.",
+    "cline": 'In the VS Code extension, turn on "Enable Hooks" in Cline\'s feature settings (the CLI needs nothing).',
+    "goose": "Goose skips plugins listed as disabled: check that agent-ledger isn't under \"disabled\" in "
+             ".config/goose/settings.json or settings.local.json.",
     "continue": "Your Continue version may not fire pre-tool hooks yet (see docs/agents.md).",
     "cursor": "Restart Cursor so it reloads .cursor/hooks.json.",
     "windsurf": "Restart Windsurf so it reloads .devin/hooks.json.",

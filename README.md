@@ -80,7 +80,7 @@ Where an agent can show an approval prompt, an "ask" uses it. Where it can't, th
 
 Live runs with free local models (qwen3:8b via Ollama):
 - OpenCode on django, fastify and hugo: every tool call was recorded, no secrets leaked, and no hook crashed. See [docs/real-world-trial.md](docs/real-world-trial.md).
-- Codex, Crush and OpenCode 2.x, end to end: the secret read was blocked, the push was held, and the allowed read was recorded. Qwen Code's hooks were also confirmed live for reads.
+- Codex, Crush, Cline CLI, Goose, Kilo Code and OpenCode 2.x, end to end: the secret read was blocked and the push was held. Qwen Code's hooks were also confirmed live for reads.
 
 ## What you get
 

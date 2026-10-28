@@ -56,3 +56,9 @@ Regression tests are in `tests/test_redteam.py` (scratch dir) and `tests/test_op
 | # | Finding | Severity | Fix |
 |---|---|---|---|
 | 18 | Under OpenCode 2.x, an "ask" was approved without a person. The plugin asked through `ctx.permission.assert`, but that call first applies the agent's own permission rules, and OpenCode's default agent allows everything. In the live run, `git push origin main` ran with no prompt. | high | The plugin registers a permission `evaluate` hook that turns its own requests into "ask", so a person always decides. A "deny" from OpenCode's own config stays final. Tests model the allow-all default config and the deny case. |
+
+## Pass 5 (live Goose, Cline CLI and Kilo Code runs)
+
+| # | Finding | Severity | Fix |
+|---|---|---|---|
+| 19 | For OpenCode 1.x and Kilo, the ledger labelled a blocked "ask" as **approved**. These agents report the plugin's own rejection as a failed tool call, and the outcome logic counted any later tool event as "it ran". In the live Kilo run, a `git push` that never ran was shown as approved, and the audit report counted it that way. Enforcement was correct; the evidence was wrong. | medium | A failure whose error is agent-ledger's exact rejection for that call's rule means "not run". The match is exact (rule id and wording) because a real tool's error text is its own output. The remaining mimicry limit is listed in the threat model. |

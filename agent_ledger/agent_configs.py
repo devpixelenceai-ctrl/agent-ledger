@@ -105,7 +105,10 @@ def _is_ours(entry, agent: str) -> bool:
     if not isinstance(entry, dict):
         return False
     cmd = entry.get("command") or entry.get("bash") or ""
-    return isinstance(cmd, str) and (f"--agent {agent} " in cmd + " " or f"/{MARK}-pre.sh" in cmd or f"/{MARK}-post.sh" in cmd)
+    if not isinstance(cmd, str):
+        return False
+    cmd = cmd.replace("\\", "/")  # Windows script paths use backslashes
+    return f"--agent {agent} " in cmd + " " or f"/{MARK}-pre.sh" in cmd or f"/{MARK}-post.sh" in cmd
 
 
 def _load(path: Path, owned: bool) -> dict | None:

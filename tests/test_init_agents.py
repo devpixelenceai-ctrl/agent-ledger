@@ -119,3 +119,11 @@ def test_registered_pre_command_really_blocks(agent, project, tmp_path):
                          capture_output=True, text=True, cwd=project, env=env, timeout=30)
     blocked = res.returncode == 2 or '"deny"' in res.stdout or '"block"' in res.stdout or '"cancel": true' in res.stdout
     assert blocked, (res.returncode, res.stdout, res.stderr)
+
+
+def test_own_entries_are_recognised_with_windows_paths():
+    from agent_ledger.agent_configs import _is_ours
+
+    assert _is_ours({"command": "C:\\proj\\.augment\\hooks\\agent-ledger-pre.sh"}, "auggie")
+    assert _is_ours({"command": "C:\\proj\\.augment\\hooks\\agent-ledger-post.sh"}, "auggie")
+    assert not _is_ours({"command": "C:\\proj\\my-hook.sh"}, "auggie")

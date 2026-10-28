@@ -49,6 +49,10 @@ def _build_parser():
     i.add_argument("--fail-closed", action="store_true", help="block tool calls when agent-ledger itself fails")
     i.add_argument("--no-policy", action="store_true", help="do not copy the starter policy")
 
+    d = sub.add_parser("doctor", help="check that every agent set up in a project is really governed")
+    d.add_argument("--project", help="project directory (default: current directory)")
+    d.add_argument("--json", action="store_true", help="machine-readable output")
+
     v = sub.add_parser("verify", help="verify the hash chain")
     v.add_argument("--db", help="ledger database (default: from config)")
     v.add_argument("--expect-head", help="a head hash recorded earlier; fail if it is no longer in the chain")
@@ -100,6 +104,12 @@ def _main_slow(argv: list[str]) -> int:
         return _cmd_init(args)
     if args.cmd == "verify":
         return _cmd_verify(args)
+    if args.cmd == "doctor":
+        import os
+
+        from agent_ledger.doctor import run_doctor
+
+        return run_doctor(args.project or os.getcwd(), as_json=args.json)
     if args.cmd in ("sessions", "show", "tail", "report"):
         from agent_ledger import browse
 
@@ -263,7 +273,7 @@ def _init_policy_and_config(args, project) -> int:
             print(f"Wrote {cfg} (fail_mode = closed)")
     agent = {"opencode": "an OpenCode session (opencode / opencode run)", "claude-code": "a Claude Code session",
              "git": "committing"}.get(args.agent, f"a {args.agent} session")
-    print(f"Next: start (or continue) {agent}; events land in the ledger. Check with: agent-ledger verify")
+    print(f"Next: start (or continue) {agent}; events land in the ledger. Check with: agent-ledger doctor")
     return 0
 
 

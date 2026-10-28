@@ -50,6 +50,7 @@ claude                   # use Claude Code as usual: every action is now logged 
 Then look at what happened:
 
 ```bash
+agent-ledger doctor                     # is every agent set up here really governed?
 agent-ledger tail                       # latest events
 agent-ledger sessions                   # one line per session
 agent-ledger serve                      # read-only dashboard on http://127.0.0.1:8765
@@ -59,7 +60,7 @@ agent-ledger verify                     # check the hash chain
 
 To try the dashboard without running an agent, use `agent-ledger serve --demo`.
 
-For OpenCode, use `agent-ledger init --agent opencode` instead of `agent-ledger init`.
+For any other agent, use `agent-ledger init --agent <name>` (for example `--agent codex` or `--agent opencode`). Then run `agent-ledger doctor` after you've used the agent once. Some agents need one more step before their hooks run, such as approving them in Codex or enabling them in Cline, and doctor tells you when hooks are installed but have never fired.
 
 agent-ledger is not on PyPI yet. An unrelated project already uses the `agent-ledger` name there, so install from GitHub as shown above.
 

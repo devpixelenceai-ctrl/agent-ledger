@@ -66,7 +66,8 @@ These limits are inherent to governing at the tool-call layer. Plan around them.
 8. **Users and other software turning it off.** Editing `~/.claude/settings.json`, setting `disableAllHooks`, or using managed settings such as `allowManagedHooksOnly`. In an interactive session, Claude Code does not run hooks until the folder is trusted. Headless (`-p`) sessions treat every folder as trusted.
 9. **The project that contains agent-ledger itself.** When agent-ledger governs its own repository (dogfooding), the agent can edit the code that governs it. A normal `pipx` install lives outside the project, where the starter policy denies writes.
 10. **Fail-open gaps.** With the default `fail_mode = "open"`, an internal error, a hook timeout, or a missing `agent-ledger` binary lets the call proceed under Claude Code's normal permissions. Use `fail_mode = "closed"` and `init --fail-closed` (`onFailure: "block"`) if that is unacceptable.
-11. **Policy authoring mistakes.** First match wins. A broad `allow` placed above a `deny` silences the deny. `agent-ledger policy lint` warns about common cases, and `policy test` shows exactly which rule decided.
+11. **Outcome labels for OpenCode 1.x and Kilo.** These agents report agent-ledger's own rejection of an "ask" as a failed tool call. The ledger recognises that exact rejection for that call's rule and labels the call "not run". A command a person approved could print that exact text itself, and would then be labelled "not run" instead of "approved". This can only hide an approved action as unexecuted; it can never make a blocked action look like it ran. The full event, including the tool's output, stays in the ledger.
+12. **Policy authoring mistakes.** First match wins. A broad `allow` placed above a `deny` silences the deny. `agent-ledger policy lint` warns about common cases, and `policy test` shows exactly which rule decided.
 
 ## Residual-risk guidance
 

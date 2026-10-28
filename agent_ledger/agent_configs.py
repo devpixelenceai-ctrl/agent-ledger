@@ -75,12 +75,14 @@ CONFIGS: dict[str, Spec] = {s.name: s for s in (
     Spec("antigravity", ".agents/hooks.json", "nested", _PRE_POST, wrap=("agent-ledger",), matcher=".*",
          entry=lambda c, fc: {"command": c}),
     Spec("cline", ".clinerules/hooks", "script", _PRE_POST, owned=True,
-         note='Turn on "Enable Hooks" in Cline\'s feature settings (the CLI reads these files too).'),
+         note='The Cline CLI runs these as is. In the VS Code extension, also turn on "Enable Hooks" in Cline\'s '
+              'feature settings.'),
     Spec("windsurf", ".devin/hooks.json", "flat", _WINDSURF,
          entry=lambda c, fc: {"command": c, "show_output": True}),
     Spec("goose", ".agents/plugins/agent-ledger/hooks/hooks.json", "nested", _PRE_POST, matcher=".*", owned=True,
          entry=lambda c, fc: {"type": "command", "command": c, "timeout": 30, "on_failure": "block" if fc else "allow"},
-         note="Enable the agent-ledger plugin in Goose (project plugins live in .agents/plugins)."),
+         note="Goose loads project plugins automatically, unless one is listed as disabled in "
+              ".config/goose/settings.json."),
     Spec("crush", _crush_path, "flat", _PRE_POST, entry=lambda c, fc: {"command": c, "timeout": 30}),
     Spec("qwen", ".qwen/settings.json", "nested", _PRE_POST, matcher=".*"),
     Spec("continue", ".continue/settings.json", "nested", _PRE_POST, matcher="*"),

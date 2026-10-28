@@ -305,8 +305,12 @@ PROFILES: dict[str, Profile] = {p.name: p for p in (
                   "ask_question": "AskUserQuestion"},
            rename={"queries": "pattern"}),
     _Windsurf("windsurf", "exit2", ask=False, names={"Shell": "Bash", "Read": "Read", "Write": "Write"}),
+    # extensionmanager__* are Goose's own platform tools; manage_extensions (turns tools on) is left unknown
     Profile("goose", "exit2", ask=False, names={"shell": "Bash", "write": "Write", "edit": "Edit", "tree": "LS",
-                                                "read_image": "Read", "load_skill": "Skill"},
+                                                "read_image": "Read", "load_skill": "Skill",
+                                                "extensionmanager__list_resources": "ListMcpResourcesTool",
+                                                "extensionmanager__read_resource": "ReadMcpResourceTool",
+                                                "extensionmanager__search_available_extensions": "ToolSearch"},
             rename={"before": "old_string", "after": "new_string"}),
     Profile("crush", "claude", ask=False, mcp_prefix="mcp_",
             names={"bash": "Bash", "view": "Read", "write": "Write", "edit": "Edit", "multiedit": "MultiEdit",

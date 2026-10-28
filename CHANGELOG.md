@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-10-28)
 
 - Verified live with a free local model: Goose 1.56, Cline CLI 3.0.74 and Kilo Code 7.8.18. In each, the secret read was blocked and the push was held.
 - Fix: for OpenCode 1.x and Kilo, a blocked "ask" was labelled "approved" in the ledger, reports and dashboard (red-team finding 19). The call itself was blocked correctly; only the record was wrong.

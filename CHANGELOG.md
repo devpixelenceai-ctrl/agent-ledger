@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-28)
 
 - `agent-ledger doctor` checks that every agent set up in a project is really governed:
   - its hook command exists;

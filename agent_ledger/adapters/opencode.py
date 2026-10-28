@@ -28,17 +28,23 @@ from agent_ledger.model import Decision, Event
 AGENT = "opencode"
 
 # OpenCode tool id -> (canonical tool, {opencode arg: canonical arg})
+# V1 (1.x) and V2 (2.x) names are both mapped: V2 renamed bash->shell, apply_patch->patch, task->subagent,
+# and the file tools' filePath->path.
+_SHELL = ("Bash", {"command": "command", "timeout": "timeout"})
 _TOOLS = {
-    "bash": ("Bash", {"command": "command", "timeout": "timeout"}),
-    "edit": ("Edit", {"filePath": "file_path", "oldString": "old_string", "newString": "new_string", "replaceAll": "replace_all"}),
-    "write": ("Write", {"filePath": "file_path", "content": "content"}),
-    "read": ("Read", {"filePath": "file_path", "offset": "offset", "limit": "limit"}),
+    "bash": _SHELL,
+    "shell": _SHELL,
+    "edit": ("Edit", {"filePath": "file_path", "path": "file_path", "oldString": "old_string", "newString": "new_string",
+                      "replaceAll": "replace_all"}),
+    "write": ("Write", {"filePath": "file_path", "path": "file_path", "content": "content"}),
+    "read": ("Read", {"filePath": "file_path", "path": "file_path", "offset": "offset", "limit": "limit"}),
     "glob": ("Glob", {"pattern": "pattern", "path": "path"}),
     "grep": ("Grep", {"pattern": "pattern", "path": "path", "include": "glob"}),
     "webfetch": ("WebFetch", {"url": "url", "format": "format", "timeout": "timeout"}),
     "websearch": ("WebSearch", None),
     "todowrite": ("TodoWrite", None),
     "task": ("Task", None),
+    "subagent": ("Task", None),
     "skill": ("Skill", None),
     "question": ("AskUserQuestion", None),
 }
@@ -109,13 +115,13 @@ def normalize(env: dict) -> dict:
     tool = str(env.get("tool") or "")
     args = env.get("args") if isinstance(env.get("args"), dict) else {}
     out["tool_use_id"] = env.get("callID")
-    if tool == "apply_patch":
+    if tool in ("apply_patch", "patch"):
         out["tool_name"], out["tool_input"] = "ApplyPatch", _patch_input(args, directory)
     elif tool in _TOOLS:
         name, keymap = _TOOLS[tool]
         out["tool_name"] = name
         out["tool_input"] = dict(args) if keymap is None else {keymap[k]: v for k, v in args.items() if k in keymap}
-        if tool == "bash" and isinstance(args.get("workdir"), str) and args["workdir"]:
+        if tool in ("bash", "shell") and isinstance(args.get("workdir"), str) and args["workdir"]:
             out["cwd"] = _abs(args["workdir"], directory)
     else:
         # MCP / plugin tools: OpenCode does not mark their origin, so keep them distinct from builtins
@@ -148,3 +154,23 @@ def render(decision: Decision | None, event_type: str, system_message: str | Non
         return "", 0
     reason = f"agent-ledger [{decision.rule_id}]: {decision.reason or decision.rule_id}"
     return json.dumps({"decision": decision.decision, "reason": reason}), 0
+
+
+class _Variant:
+    """An agent that runs OpenCode's plugin API under its own name (Kilo Code)."""
+
+    def __init__(self, agent: str):
+        self.agent = agent
+
+    def to_event(self, data: dict, env) -> Event:
+        ev = to_event(data, env)
+        ev.agent = self.agent
+        return ev
+
+    stored_payload = staticmethod(stored_payload)
+    summarize = staticmethod(summarize)
+    session_meta = staticmethod(session_meta)
+    render = staticmethod(render)
+
+
+KILO = _Variant("kilo")

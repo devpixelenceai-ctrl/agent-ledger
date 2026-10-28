@@ -10,13 +10,21 @@ def main(argv: list[str] | None = None) -> int:
     if argv[:1] == ["hook"]:
         from agent_ledger.hook import main as hook_main
 
-        agent = "claude-code"
+        opts = {"--agent": "claude-code", "--event": None}
         rest = argv[1:]
-        if rest[:1] == ["--agent"] and len(rest) > 1:
-            agent = rest[1]
-        elif rest[:1] and rest[0].startswith("--agent="):
-            agent = rest[0].split("=", 1)[1]
-        return hook_main(agent=agent)
+        while rest:
+            key, _, value = rest[0].partition("=")
+            if key in opts and value:
+                opts[key], rest = value, rest[1:]
+            elif key in opts and len(rest) > 1:
+                opts[key], rest = rest[1], rest[2:]
+            else:
+                rest = rest[1:]
+        return hook_main(agent=opts["--agent"], event=opts["--event"])
+    if argv[:1] == ["git-hook"]:
+        from agent_ledger.githook import main as githook_main
+
+        return githook_main(argv[1:])
     return _main_slow(argv)
 
 
@@ -27,9 +35,12 @@ def _build_parser():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("hook", help="hook entry point (run by Claude Code; reads JSON on stdin)")
+    sub.add_parser("git-hook", help="git pre-commit / pre-push entry point (installed by init --agent git)")
 
     i = sub.add_parser("init", help="install agent-ledger into a project (Claude Code hooks or an OpenCode plugin)")
-    i.add_argument("--agent", choices=["claude-code", "opencode"], default="claude-code",
+    from agent_ledger.agent_configs import CONFIGS
+
+    i.add_argument("--agent", choices=["claude-code", "opencode", "kilo", "amp", "git", *sorted(CONFIGS)], default="claude-code",
                    help="which agent to govern (default: claude-code)")
     i.add_argument("--project", help="project directory (default: current directory)")
     i.add_argument("--user", action="store_true", help="install into ~/.claude/settings.json instead")
@@ -142,18 +153,48 @@ def _cmd_init(args) -> int:
     from agent_ledger.init import InitError
 
     project = Path(args.project or os.getcwd()).resolve()
-    if args.agent == "opencode":
-        from agent_ledger.init import install_opencode_plugin
+    if args.agent in ("opencode", "kilo", "amp"):
+        from agent_ledger.init import install_amp_plugin, install_opencode_plugin
 
-        argv = _hook_argv("opencode")
+        argv = _hook_argv(args.agent)
+        rel = {"opencode": ".opencode/plugins/agent-ledger.js", "kilo": ".kilo/plugins/agent-ledger.js",
+               "amp": ".amp/plugins/agent-ledger.ts"}[args.agent]
         try:
-            changed = install_opencode_plugin(project, argv, fail_closed=args.fail_closed)
+            if args.agent == "amp":
+                changed = install_amp_plugin(project, argv, fail_closed=args.fail_closed)
+            else:
+                changed = install_opencode_plugin(project, argv, fail_closed=args.fail_closed, dest=os.path.dirname(rel))
         except InitError as e:
             print(f"agent-ledger init: {e}", file=sys.stderr)
             return 1
-        plugin = project / ".opencode" / "plugins" / "agent-ledger.js"
+        plugin = project / rel
         print(f"{'Installed' if changed else 'Already up to date:'} {plugin}")
         print(f"  hook: {' '.join(argv)}")
+    elif args.agent not in ("claude-code", "git"):
+        from agent_ledger.agent_configs import CONFIGS, install_agent
+
+        spec = CONFIGS[args.agent]
+        try:
+            changed = install_agent(args.agent, project, _hook_argv(args.agent)[:-2], fail_closed=args.fail_closed)
+        except InitError as e:
+            print(f"agent-ledger init: {e}", file=sys.stderr)
+            return 1
+        where = ", ".join(str(p.relative_to(project)) for p in spec.files(project))
+        print(f"{'Installed' if changed else 'Already up to date:'} {args.agent} hooks in {where}")
+        if spec.note:
+            print(f"  {spec.note}")
+    elif args.agent == "git":
+        from agent_ledger.init import install_git_hooks
+
+        cli = _hook_argv("git")[:-3]  # the agent-ledger command itself, without "hook --agent git"
+        try:
+            changed = install_git_hooks(project, cli)
+        except InitError as e:
+            print(f"agent-ledger init: {e}", file=sys.stderr)
+            return 1
+        print(f"{'Installed' if changed else 'Already up to date:'} git pre-commit and pre-push hooks")
+        print("  Commits and pushes by any tool (including agents without hooks) now go through the policy.")
+        print("  Aider skips git hooks by default: run it with --git-commit-verify.")
     elif _install_claude_hooks(args, project) != 0:
         return 1
     return _init_policy_and_config(args, project)
@@ -220,7 +261,8 @@ def _init_policy_and_config(args, project) -> int:
             home.mkdir(parents=True, exist_ok=True, mode=0o700)
             cfg.write_text('[ledger]\nfail_mode = "closed"\n', "utf-8")
             print(f"Wrote {cfg} (fail_mode = closed)")
-    agent = "an OpenCode session (opencode / opencode run)" if args.agent == "opencode" else "a Claude Code session"
+    agent = {"opencode": "an OpenCode session (opencode / opencode run)", "claude-code": "a Claude Code session",
+             "git": "committing"}.get(args.agent, f"a {args.agent} session")
     print(f"Next: start (or continue) {agent}; events land in the ledger. Check with: agent-ledger verify")
     return 0
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Every major coding agent
+- `agent-ledger init --agent <name>` now covers 19 agents with one policy and ledger: Claude Code, OpenCode 1.x and 2.x, Codex, Copilot CLI, Cursor, Gemini CLI, Antigravity, Cline, Windsurf / Devin Desktop, Goose, Crush, Qwen Code, Continue, Factory Droid, Kiro, Auggie, Devin CLI, Kilo Code and Amp.
+- Each agent's config is written in its own format and merged with your existing settings. Its hook payloads are read, and decisions answered, in that agent's own format.
+- Where an agent can show an approval prompt, "ask" uses it. Elsewhere the call is blocked with a "needs human approval" message: an ask is never allowed silently.
+- Unknown tools only ever make a decision stricter.
+- `--agent git` adds pre-commit and pre-push hooks for agents with no hook system (Aider, Warp, Zed).
+- Self-protection covers every agent's hook and plugin configuration.
+- Verified live with free local models: Codex, Crush, OpenCode 2.x, and Qwen Code (reads). The rest are contract-tested against each agent's documented payloads. See docs/agents.md.
+
+### Fixes
+- OpenCode 2.x: an "ask" could be approved silently by OpenCode's default allow-all agent config. It now always reaches a person (red-team finding 18).
+- Codex silently skips hooks you haven't approved. `init` now says so, and the docs explain the one-time approval.
+
 ## 0.1.0 (2026-10-27)
 
 First public release.

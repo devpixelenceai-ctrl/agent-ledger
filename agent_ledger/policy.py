@@ -405,6 +405,10 @@ def analyze_segment(seg: Segment, ctx: Context) -> Unit:
     return u
 
 
+_KNOWN_TOOLS = frozenset({"Bash", "Read", "NotebookRead", "Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch",
+                          "Glob", "Grep", "LS", "WebFetch"})
+
+
 def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = None) -> list[Unit]:
     raw = raw or {}
     ti = tool_input if isinstance(tool_input, dict) else {}
@@ -421,8 +425,9 @@ def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = No
     c = lambda t: classify(t, False, ctx.cwd, ctx)  # noqa: E731
     fp = ti.get("file_path") or ti.get("notebook_path")
     if tool in ("Read", "NotebookRead"):
-        if isinstance(fp, str):
-            u.reads.append(c(fp))
+        # some agents read several files in one call (Gemini read_many_files): every one is checked
+        paths = ti.get("file_paths") if isinstance(ti.get("file_paths"), list) else ([fp] if isinstance(fp, str) else [])
+        u.reads += [c(p) for p in paths if isinstance(p, str)]
     elif tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "ApplyPatch"):
         # a patch (OpenCode apply_patch) touches several files: every one is checked
         paths = ti.get("file_paths") if isinstance(ti.get("file_paths"), list) else ([fp] if isinstance(fp, str) else [])
@@ -438,8 +443,13 @@ def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = No
         if tool == "Grep" and isinstance(ti.get("glob"), str):
             u.reads.append(classify(os.path.join(base, ti["glob"]), False, ctx.cwd, ctx))
     elif tool == "WebFetch":
-        h = _host(str(ti.get("url", "")))
-        u.hosts.append(h or "(invalid-url)")
+        # some agents fetch several URLs in one call (Gemini web_fetch, Cline): every host is checked
+        urls = [str(ti.get("url", ""))]
+        if isinstance(ti.get("urls"), list):
+            urls += [x for x in ti["urls"] if isinstance(x, str)]
+        for url in [x for x in dict.fromkeys(urls) if x] or [""]:
+            h = _host(url)
+            u.hosts.append(h or "(invalid-url)")
     elif tool.startswith("mcp__"):
         src = raw.get("mcp_server")
         u.mcp_source = src.get("source") if isinstance(src, dict) else None
@@ -449,6 +459,10 @@ def build_units(tool: str, tool_input: dict, ctx: Context, raw: dict | None = No
                 u.writes.append(c(ti[k]))  # unknown tool touching a path: assume it may write
     u.text = str(fp or ti.get("url") or ti.get("path") or tool)
     u.label = f"{tool}: {u.text}" if u.text != tool else tool
+    if tool not in _KNOWN_TOOLS and not tool.startswith("mcp__") and isinstance(ti.get("command"), str):
+        # an unknown tool that carries a shell command: the command's segments are checked as well.
+        # They can only make the decision stricter; the tool itself still needs its own rule.
+        return [u] + build_units("Bash", {"command": ti["command"]}, ctx)
     return [u]
 
 

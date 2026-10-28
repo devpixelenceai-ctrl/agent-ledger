@@ -118,7 +118,8 @@ def test_install_writes_executable_hooks_and_is_idempotent(repo):
     assert install_git_hooks(repo, argv) is True
     for name in ("pre-commit", "pre-push"):
         p = repo / ".git" / "hooks" / name
-        assert p.stat().st_mode & stat.S_IXUSR
+        if sys.platform != "win32":  # Windows has no executable bit; git runs hooks through its own sh
+            assert p.stat().st_mode & stat.S_IXUSR
         assert "agent-ledger-git-hook" in p.read_text()
     assert install_git_hooks(repo, argv) is False
 

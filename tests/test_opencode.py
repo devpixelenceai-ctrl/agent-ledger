@@ -428,9 +428,15 @@ const asked = [];
 // Models real V2: the default agent's config ALLOWS everything, then evaluate hooks may change the effect;
 // only an effective "ask" reaches the user (approve/decline). This is what the live V2 run exposed.
 const configEffect = process.argv[5] || "allow";
-let pushEvent;
+// A real queue: events are never dropped while the plugin is busy recording the previous one. `ev`
+// resolves when the plugin asks for the next event, i.e. once this one has been fully recorded.
+const queue = []; let waiting = null; let recorded = null;
 const events = { [Symbol.asyncIterator]() { return this; },
-  next() { return new Promise((r) => { pushEvent = (e) => r({ value: e, done: false }); }); } };
+  next() {
+    if (recorded) { const r = recorded; recorded = null; r(); }
+    if (queue.length) return Promise.resolve({ value: queue.shift(), done: false });
+    return new Promise((r) => { waiting = r; });
+  } };
 const ctx = {
   location: { directory: process.argv[3], project: { id: "p", directory: process.argv[3] } },
   tool: { hook: async (name, cb) => { hooks[name === "execute.before" ? "before" : "after"].push(cb); } },
@@ -451,7 +457,12 @@ const ctx = {
 };
 await plugin.setup(ctx);
 const results = {};
-const ev = (type, extra = {}) => { pushEvent && pushEvent({ type, sessionID: "ses_v2", ...extra }); return new Promise((r) => setTimeout(r, 300)); };
+const ev = (type, extra = {}) => new Promise((done) => {
+  const timer = setTimeout(done, 30000);  // safety net only
+  recorded = () => { clearTimeout(timer); done(); };
+  const e = { type, sessionID: "ses_v2", ...extra };
+  if (waiting) { const w = waiting; waiting = null; w({ value: e, done: false }); } else queue.push(e);
+});
 async function before(tool, input, id) {
   const e = { tool, sessionID: "ses_v2", agent: "build", messageID: "m1", id, input };
   try { for (const cb of hooks.before) await cb(e); return "ran"; } catch (err) { return "blocked: " + err.message; }

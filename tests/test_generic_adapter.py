@@ -2,6 +2,7 @@
 decisions in each agent family's response format. Per-agent profiles build on these."""
 
 import json
+import os
 
 import pytest
 
@@ -46,8 +47,10 @@ def test_inference_by_name(name, args, tool, ti):
 
 def test_patch_tools_extract_every_path():
     patch = "*** Begin Patch\n*** Add File: a.py\n+x\n*** Delete File: b.py\n*** End Patch"
-    tool, ti = infer_action("apply_patch", {"input": patch}, cwd="/repo")
-    assert tool == "ApplyPatch" and ti["file_paths"] == ["/repo/a.py"] and ti["delete_paths"] == ["/repo/b.py"]
+    repo = os.path.abspath("repo")
+    tool, ti = infer_action("apply_patch", {"input": patch}, cwd=repo)
+    assert tool == "ApplyPatch"
+    assert ti["file_paths"] == [os.path.join(repo, "a.py")] and ti["delete_paths"] == [os.path.join(repo, "b.py")]
 
 
 def test_read_many_files_reads_every_path():

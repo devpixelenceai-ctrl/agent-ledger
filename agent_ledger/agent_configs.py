@@ -213,7 +213,9 @@ def install_agent(agent: str, project, hook_argv: list[str], fail_closed: bool =
                 if script.is_symlink() or (script.exists() and MARK not in script.read_text("utf-8", "replace")):
                     raise InitError(f"{script} exists and was not written by agent-ledger; move it aside first")
                 writes.append((script, _script(commands[phase], agent), True))
-                commands[phase] = str(script.resolve())
+                # absolute() not resolve(): on Windows resolve() expands 8.3 short names only once the
+                # file exists, which would make every re-run look like a change
+                commands[phase] = str(script.absolute())
         data = _load(path, spec.owned)
         if spec.kind == "kiro":
             data = {**spec.top, "hooks": [

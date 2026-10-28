@@ -5,7 +5,7 @@
 - It stops risky actions until a person approves them.
 - It turns the record into an audit report you can hand to security or compliance.
 
-It is free and runs entirely on your machine: no accounts, no cloud, and no dependencies beyond the Python standard library. The first integration is [Claude Code hooks](docs/hook-contract.md). The core is agent-agnostic, so other agents can plug in later.
+It is free and runs entirely on your machine: no accounts, no cloud, and no dependencies beyond the Python standard library. The first integration is [Claude Code hooks](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/hook-contract.md). The core is agent-agnostic, so other agents can plug in later.
 
 What a decision looks like. A shell command is split into its parts, each part is judged, and the strictest result wins:
 
@@ -41,7 +41,7 @@ agent-ledger provides all three.
 You need Python 3.11+ and [pipx](https://pipx.pypa.io).
 
 ```bash
-pipx install git+https://github.com/devpixelenceai-ctrl/agent-ledger   # or, from a checkout: pipx install .
+pipx install agent-ledger-guard   # or the latest from GitHub: pipx install git+https://github.com/devpixelenceai-ctrl/agent-ledger
 cd your-project
 agent-ledger init        # adds hooks to .claude/settings.json, writes and trusts .agent-ledger.toml
 claude                   # use Claude Code as usual: every action is now logged and governed
@@ -62,7 +62,7 @@ To try the dashboard without running an agent, use `agent-ledger serve --demo`.
 
 For any other agent, use `agent-ledger init --agent <name>` (for example `--agent codex` or `--agent opencode`). Then run `agent-ledger doctor` after you've used the agent once. Some agents need one more step before their hooks run, such as approving them in Codex or enabling them in Cline, and doctor tells you when hooks are installed but have never fired.
 
-agent-ledger is not on PyPI yet. An unrelated project already uses the `agent-ledger` name there, so install from GitHub as shown above.
+On PyPI the package is called `agent-ledger-guard`, because an unrelated project already uses `agent-ledger` there. The command you run is still `agent-ledger`.
 
 ## Supported agents
 
@@ -74,12 +74,12 @@ agent-ledger governs **19 coding agents** with one policy, one ledger, and the s
 | **Plugins** | OpenCode 1.x and 2.x, Kilo Code, Amp |
 | **Agents without hooks** (Aider, Warp, Zed) | `--agent git`: pre-commit and pre-push hooks govern what they commit and push |
 
-Where an agent can show an approval prompt, an "ask" uses it. Where it can't, the call is blocked and the agent is told it needs human approval, so nothing that needs approval is ever allowed silently. [docs/agents.md](docs/agents.md) has the full matrix: where each agent's config goes, how "ask" behaves, which integrations were run live and which were contract-tested, and per-agent notes.
+Where an agent can show an approval prompt, an "ask" uses it. Where it can't, the call is blocked and the agent is told it needs human approval, so nothing that needs approval is ever allowed silently. [docs/agents.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/agents.md) has the full matrix: where each agent's config goes, how "ask" behaves, which integrations were run live and which were contract-tested, and per-agent notes.
 
 **One step for Codex:** approve the hooks once by starting `codex` in the project. Until then, Codex skips them and runs ungoverned.
 
 Live runs with free local models (qwen3:8b via Ollama):
-- OpenCode on django, fastify and hugo: every tool call was recorded, no secrets leaked, and no hook crashed. See [docs/real-world-trial.md](docs/real-world-trial.md).
+- OpenCode on django, fastify and hugo: every tool call was recorded, no secrets leaked, and no hook crashed. See [docs/real-world-trial.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/real-world-trial.md).
 - Codex, Crush, Cline CLI, Goose, Kilo Code and OpenCode 2.x, end to end: the secret read was blocked and the push was held. Qwen Code's hooks were also confirmed live for reads.
 
 ## What you get
@@ -142,7 +142,7 @@ Tools for writing and checking rules:
 - `agent-ledger policy test "<command>"` shows which rule matched and why.
 - `agent-ledger policy lint` catches mistakes.
 
-The full reference is in [docs/policy-reference.md](docs/policy-reference.md).
+The full reference is in [docs/policy-reference.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/policy-reference.md).
 
 **Repo policies must be trusted.** A cloned repository could ship a permissive `.agent-ledger.toml`. The hook only uses a repo policy whose hash you have pinned with `agent-ledger policy trust`. Otherwise it falls back to `~/.agent-ledger/policy.toml` or the built-in starter policy, and warns you at session start.
 
@@ -171,7 +171,7 @@ Choose closed for unattended or high-stakes agents. Choose open for interactive 
 
 ## What agent-ledger cannot do
 
-Be clear-eyed about these. They are covered in depth in [docs/threat-model.md](docs/threat-model.md).
+Be clear-eyed about these. They are covered in depth in [docs/threat-model.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/threat-model.md).
 
 - **It sees tool calls, not intentions.** If an agent writes a script now and runs it later, only the call that runs the script is checked, not what the script does. The same applies to `npm test` running a test file the agent just edited.
 - **It only governs hooked tools.** Anything the agent does outside Claude Code's tools is invisible: code that runs at build time, a git hook it installed, a process it left running.
@@ -214,15 +214,15 @@ python3.11 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 ```
 
 Related documents:
-- [docs/hook-contract.md](docs/hook-contract.md): the verified Claude Code hook contract.
-- [docs/threat-model.md](docs/threat-model.md): what is defended and what isn't.
-- [docs/red-team.md](docs/red-team.md): findings from adversarial passes and their regression tests.
+- [docs/hook-contract.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/hook-contract.md): the verified Claude Code hook contract.
+- [docs/threat-model.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/threat-model.md): what is defended and what isn't.
+- [docs/red-team.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/red-team.md): findings from adversarial passes and their regression tests.
 
 This repository governs its own development: `.claude/settings.json` runs agent-ledger on every tool call made while building it.
 
 ## Contributing and security
 
-Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
+Contributions are welcome; see [CONTRIBUTING.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/CONTRIBUTING.md). Please report vulnerabilities privately as described in [SECURITY.md](https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/SECURITY.md), not in a public issue.
 
 ## License
 

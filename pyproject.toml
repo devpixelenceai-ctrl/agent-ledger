@@ -1,23 +1,37 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-ledger"
+name = "agent-ledger-guard"
 version = "0.3.1"
-description = "Tamper-evident flight recorder and policy gate for AI coding agents (Claude Code hooks first)."
+description = "Tamper-evident flight recorder and policy gate for AI coding agents: Claude Code, Codex, OpenCode, Cursor, Gemini, Cline, Goose and more."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Pixelence AI" }]
-keywords = ["ai-agents", "claude-code", "opencode", "audit", "governance", "hooks", "policy", "security"]
+keywords = ["ai-agents", "claude-code", "codex", "opencode", "cursor", "gemini-cli", "cline", "goose", "audit",
+            "governance", "hooks", "policy", "security"]
 dependencies = []
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Environment :: Console",
     "Topic :: Security",
     "Topic :: Software Development :: Quality Assurance",
 ]
+
+[project.urls]
+Homepage = "https://github.com/devpixelenceai-ctrl/agent-ledger"
+Documentation = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/docs/agents.md"
+Changelog = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/CHANGELOG.md"
+Issues = "https://github.com/devpixelenceai-ctrl/agent-ledger/issues"
+Security = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/SECURITY.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "hypothesis>=6.100", "coverage>=7.4"]
@@ -36,12 +50,6 @@ testpaths = ["tests"]
 markers = ["bench: latency benchmark (spawns real hook processes)"]
 # a deprecation in our own code fails the build instead of hiding in thousands of log lines
 filterwarnings = ["error::DeprecationWarning:agent_ledger"]
-
-[project.urls]
-Homepage = "https://github.com/devpixelenceai-ctrl/agent-ledger"
-Issues = "https://github.com/devpixelenceai-ctrl/agent-ledger/issues"
-Changelog = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/CHANGELOG.md"
-Security = "https://github.com/devpixelenceai-ctrl/agent-ledger/blob/main/SECURITY.md"
 
 [tool.coverage.run]
 source = ["agent_ledger"]

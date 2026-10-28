@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **On PyPI as `agent-ledger-guard`:** `pipx install agent-ledger-guard`. The command is still `agent-ledger`. Releases are published from GitHub Actions with PyPI trusted publishing, so no API token exists.
+- The package metadata lists the supported agents, Python versions, licence (SPDX `MIT`) and project links.
+
 ## 0.3.1 (2026-10-28)
 
 - Verified live with a free local model: Goose 1.56, Cline CLI 3.0.74 and Kilo Code 7.8.18. In each, the secret read was blocked and the push was held.

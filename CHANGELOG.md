@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-28)
 
 ### Every major coding agent
 - `agent-ledger init --agent <name>` now covers 19 agents with one policy and ledger: Claude Code, OpenCode 1.x and 2.x, Codex, Copilot CLI, Cursor, Gemini CLI, Antigravity, Cline, Windsurf / Devin Desktop, Goose, Crush, Qwen Code, Continue, Factory Droid, Kiro, Auggie, Devin CLI, Kilo Code and Amp.
